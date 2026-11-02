@@ -145,3 +145,28 @@
 "tipjar_unavailable" = "現在、商品を取得できません。";
 "tipjar_thanks" = "ご支援ありがとうございます！";
 "tipjar_error_unverified" = "購入の検証に失敗しました";
+
+/* Result screen and box editing (from KotenOCR) */
+"boxes_toggle" = "枠";
+"box_edit_enter" = "枠を直す";
+"confidence_label" = "確信度";
+"confidence_hint_hidden" = "上げると自信のない枠から隠れます。いま %d 行を隠しています";
+"confidence_hint" = "上げると自信のない枠から隠れます。表示だけの変更です";
+"edit_detection_title" = "テキストを編集";
+"edit_cancel" = "キャンセル";
+"edit_save" = "保存";
+"edit_text" = "テキスト編集";
+"box_edit_pending" = "再認識が必要";
+"box_edit_area" = "枠の編集エリア";
+"box_edit_done" = "完了";
+"box_edit_undo" = "元に戻す";
+"box_edit_delete" = "枠を削除";
+"box_edit_reread" = "再認識";
+"box_tool_select" = "選ぶ";
+"box_tool_add" = "追加";
+"box_tool_split" = "分割";
+"box_tool_merge" = "結合";
+"box_hint_select" = "枠をタップして選ぶ。辺や角を引いて大きさを、中を引いて位置を変える";
+"box_hint_add" = "画像をなぞって、新しい枠を描く";
+"box_hint_split" = "分けたい位置をタップ";
+"box_hint_merge" = "1つ選んでから、つなげる枠をタップ";

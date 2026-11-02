@@ -9,14 +9,14 @@ extension Detection {
 /// The result screen's confidence slider. A display filter only: nothing is re-read and the stored
 /// lines are never changed by moving the slider.
 ///
-/// Scale note: both detectors give a sigmoid-style 0-1 score, but they are not calibrated against each
-/// other. The classical detector (RTMDet) already drops scores under 0.3 and the modern one (DEIM) drops
-/// 0.25 and below, so a line on screen never scores under those floors. The initial value 0.3 is the same
-/// for both: it hides nothing in classical mode and only the 0.25-0.3 band in modern mode.
+/// Scale note (Local OCR): the four engines score differently. The NDL detectors give a sigmoid-style
+/// 0-1 box score (floors 0.3 / 0.25), Vision gives its own confidence (often 0.3, 0.5 or 1.0) and PP-OCR
+/// the mean recognition probability. None is calibrated against another, so the slider starts at 0 and
+/// hides nothing; the reader raises it to drop the least certain lines of the page in front of them.
 enum ConfidenceFilter {
-    /// Classical mode's detector floor; also the initial slider value.
-    static let defaultThreshold: Float = 0.3
-    static let range: ClosedRange<Float> = 0.25...0.9
+    /// Initial slider value: everything shows.
+    static let defaultThreshold: Float = 0
+    static let range: ClosedRange<Float> = 0...0.95
 
     /// Lines at or above `threshold`, each with its index in the full list. A score of exactly the
     /// threshold stays visible.

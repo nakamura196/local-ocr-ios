@@ -57,6 +57,26 @@ final class PPOCREngine: @unchecked Sendable {
         return result
     }
 
+    /// Reads hand-corrected boxes (box editing) with the recognition model only. A box at least
+    /// 1.5 times taller than wide is turned, as the main pipeline does with its crops.
+    func recognize(boxes: [Detection], in image: CGImage) throws -> [Detection] {
+        let bounds = CGRect(x: 0, y: 0, width: image.width, height: image.height)
+        var out = boxes
+        for i in out.indices {
+            try autoreleasepool {
+                let b = out[i].box
+                guard b.count >= 4 else { return }
+                let rect = CGRect(x: b[0], y: b[1], width: max(1, b[2] - b[0]), height: max(1, b[3] - b[1]))
+                    .intersection(bounds)
+                guard !rect.isNull, !rect.isEmpty, let cg = image.cropping(to: rect),
+                      let crop = PPOCRImage(cgImage: cg) else { out[i].text = ""; return }
+                let turned = Double(crop.height) / Double(crop.width) >= 1.5 ? crop.rotatedLeft() : crop
+                out[i].text = try readCrop(turned).0
+            }
+        }
+        return out
+    }
+
     // MARK: detection
 
     /// Detector memory grows with its input area: measured on an iPhone 16e (Debug), the peak was

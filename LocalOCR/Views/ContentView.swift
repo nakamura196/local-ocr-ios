@@ -31,7 +31,9 @@ struct ContentView: View {
         ZStack {
             if let result {
                 ResultView(result: result,
+                           historyItemID: historyItemID,
                            backTitle: cameFromHistory ? String(localized: "history_title", defaultValue: "履歴") : nil,
+                           playStamp: !cameFromHistory,
                            onBack: {
                                if cameFromHistory {
                                    withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) { reset() }
@@ -41,6 +43,7 @@ struct ContentView: View {
                                }
                            },
                            onNew: { withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) { reset() } })
+                    .id(historyItemID)
                     .transition(LOMotion.rise(reduceMotion: reduceMotion))
             } else if let image {
                 PageView(image: image, engineRaw: $engineRaw,

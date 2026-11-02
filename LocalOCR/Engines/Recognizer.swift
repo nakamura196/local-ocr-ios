@@ -5,7 +5,7 @@ import CoreGraphics
 struct PageResult {
     let engine: EngineKind
     let image: CGImage
-    let lines: [Detection]
+    var lines: [Detection]
     let seconds: Double
 
     var text: String { lines.filter { !$0.text.isEmpty }.map(\.text).joined(separator: "\n") }
@@ -40,6 +40,38 @@ final class Recognizer: ObservableObject {
         return PageResult(engine: kind, image: result.0, lines: result.1, seconds: Date().timeIntervalSince(start))
     }
 
+    /// Reads hand-corrected boxes again with `kind`. Returns the boxes with `text` filled in, in the same order.
+    func reread(_ kind: EngineKind, boxes: [Detection], in image: CGImage) async throws -> [Detection] {
+        guard !boxes.isEmpty else { return [] }
+        isRunning = true
+        defer { isRunning = false }
+        switch kind {
+        case .vision:
+            return try await VisionEngine.recognize(boxes: boxes, in: image)
+        case .ndlKoten:
+            _ = try ndl.sharedEnv()
+            return try await ndl.recognize(boxes: boxes, in: image, mode: .koten)
+        case .ndlModern:
+            _ = try ndl.sharedEnv()
+            return try await ndl.recognize(boxes: boxes, in: image, mode: .ndl)
+        case .ppocr:
+            let engine = try loadPPOCR()
+            return try await InferenceThread.shared.run { try engine.recognize(boxes: boxes, in: image) }
+        }
+    }
+
+    /// Puts lines back in reading order after an edit. The NDL engines use their own order
+    /// (block xy-cut). Vision and PP-OCR give no order of their own for new boxes: a page of mostly
+    /// tall boxes (vertical writing) uses the same xy-cut, otherwise lines go top to bottom, left to right.
+    func orderReading(_ kind: EngineKind, _ lines: [Detection], imageWidth: Int, imageHeight: Int) -> [Detection] {
+        switch kind {
+        case .ndlKoten, .ndlModern:
+            return ndl.orderReading(lines, imageWidth: imageWidth, imageHeight: imageHeight)
+        case .vision, .ppocr:
+            return ReadingOrderFallback.order(lines, imageWidth: imageWidth, imageHeight: imageHeight)
+        }
+    }
+
     /// Forget a loaded engine whose files were deleted.
     func unload(_ kind: EngineKind) {
         switch kind {
@@ -67,5 +99,41 @@ final class Recognizer: ObservableObject {
                                      recModelPath: rec, recConfigPath: recCfg)
         ppocr = engine
         return engine
+    }
+}
+
+/// Reading order for engines without one of their own (Vision, PP-OCR), used after box edits.
+enum ReadingOrderFallback {
+    static func isVerticalPage(_ lines: [Detection]) -> Bool {
+        let boxes = lines.filter { $0.box.count >= 4 }
+        guard !boxes.isEmpty else { return false }
+        let tall = boxes.filter { ($0.box[3] - $0.box[1]) > ($0.box[2] - $0.box[0]) * 3 / 2 }.count
+        return tall * 2 > boxes.count
+    }
+
+    static func order(_ lines: [Detection], imageWidth: Int, imageHeight: Int) -> [Detection] {
+        if isVerticalPage(lines) {
+            return ReadingOrderProcessor().process(detections: lines, imageWidth: imageWidth, imageHeight: imageHeight)
+        }
+        return horizontal(lines)
+    }
+
+    /// Top to bottom; lines sharing more than half the height of the shorter one are one row, left to right.
+    static func horizontal(_ lines: [Detection]) -> [Detection] {
+        let byTop = lines.filter { $0.box.count >= 4 }.sorted { $0.box[1] < $1.box[1] }
+        var rows: [[Detection]] = []
+        for line in byTop {
+            if var row = rows.last, let anchor = row.first {
+                let overlap = min(anchor.box[3], line.box[3]) - max(anchor.box[1], line.box[1])
+                let shorter = min(anchor.box[3] - anchor.box[1], line.box[3] - line.box[1])
+                if overlap * 2 > shorter {
+                    row.append(line)
+                    rows[rows.count - 1] = row
+                    continue
+                }
+            }
+            rows.append([line])
+        }
+        return rows.flatMap { $0.sorted { $0.box[0] < $1.box[0] } } + lines.filter { $0.box.count < 4 }
     }
 }

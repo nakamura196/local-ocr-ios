@@ -145,3 +145,28 @@
 "tipjar_unavailable" = "Products are currently unavailable.";
 "tipjar_thanks" = "Thank you for your support!";
 "tipjar_error_unverified" = "Purchase verification failed";
+
+/* Result screen and box editing (from KotenOCR) */
+"boxes_toggle" = "Boxes";
+"box_edit_enter" = "Edit Boxes";
+"confidence_label" = "Confidence";
+"confidence_hint_hidden" = "Raise it to hide the boxes the app is less sure about. %d lines hidden now";
+"confidence_hint" = "Raise it to hide the boxes the app is less sure about. Display only";
+"edit_detection_title" = "Edit Text";
+"edit_cancel" = "Cancel";
+"edit_save" = "Save";
+"edit_text" = "Edit Text";
+"box_edit_pending" = "Needs re-reading";
+"box_edit_area" = "Box editing area";
+"box_edit_done" = "Done";
+"box_edit_undo" = "Undo";
+"box_edit_delete" = "Delete box";
+"box_edit_reread" = "Re-read";
+"box_tool_select" = "Select";
+"box_tool_add" = "Add";
+"box_tool_split" = "Split";
+"box_tool_merge" = "Merge";
+"box_hint_select" = "Tap a box to select it. Drag a side or corner to resize, drag inside to move";
+"box_hint_add" = "Drag on the image to draw a new box";
+"box_hint_split" = "Tap where to cut the box";
+"box_hint_merge" = "Select one box, then tap the box to join";
