@@ -1,0 +1,290 @@
+import Foundation
+import CoreGraphics
+import OnnxRuntimeBindings
+
+class DEIMDetector: @unchecked Sendable {
+    private let session: ORTSession
+    private let inputWidth = 800
+    private let inputHeight = 800
+    private let scoreThreshold: Float
+    private let confThreshold: Float
+    private let iouThreshold: Float
+    private let maxDetections: Int
+    private let classNames: [Int: String]
+
+    struct Metadata {
+        let originalWidth: Int
+        let originalHeight: Int
+        let maxWH: Int
+    }
+
+    init(env: ORTEnv, modelPath: String, configPath: String,
+         scoreThreshold: Float = 0.2, confThreshold: Float = 0.25,
+         iouThreshold: Float = 0.2, maxDetections: Int = 100) throws {
+        let options = try ORTSessionOptions()
+
+        self.session = try ORTSession(env: env, modelPath: modelPath, sessionOptions: options)
+        self.scoreThreshold = scoreThreshold
+        self.confThreshold = confThreshold
+        self.iouThreshold = iouThreshold
+        self.maxDetections = maxDetections
+        self.classNames = DEIMDetector.loadClassNames(from: configPath)
+    }
+
+    // MARK: - Load class names from YAML
+
+    static func loadClassNames(from path: String) -> [Int: String] {
+        guard let content = try? String(contentsOfFile: path, encoding: .utf8) else {
+            return [:]
+        }
+        var names: [Int: String] = [:]
+        var inNames = false
+        for line in content.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("names:") {
+                inNames = true
+                continue
+            }
+            if inNames {
+                // Parse "  0: text_block" format
+                let parts = trimmed.split(separator: ":", maxSplits: 1)
+                if parts.count == 2, let idx = Int(parts[0].trimmingCharacters(in: .whitespaces)) {
+                    names[idx] = parts[1].trimmingCharacters(in: .whitespaces)
+                } else if !trimmed.isEmpty && !trimmed.hasPrefix("#") {
+                    // Reached a non-name entry, stop parsing
+                    break
+                }
+            }
+        }
+        return names
+    }
+
+    // MARK: - Detection
+
+    /// The ORT values, output dictionary and tensor data are autoreleased Objective-C objects.
+    /// Swift concurrency threads drain their autorelease pool rarely, so without a pool per run
+    /// every run's output buffers stayed alive and the footprint grew with each image.
+    func detect(image: CGImage) throws -> [Detection] {
+        try autoreleasepool { try detectUnpooled(image: image) }
+    }
+
+    private func detectUnpooled(image: CGImage) throws -> [Detection] {
+        let (tensor, metadata) = preprocess(image: image)
+        guard !tensor.isEmpty else { return [] }
+
+        let inputData = NSMutableData(bytes: tensor, length: tensor.count * MemoryLayout<Float>.stride)
+        let shape: [NSNumber] = [1, 3, NSNumber(value: inputHeight), NSNumber(value: inputWidth)]
+        let inputTensor = try ORTValue(tensorData: inputData, elementType: .float, shape: shape)
+
+        // Second input: orig_target_sizes [1,2] as Int64, values = [inputHeight, inputWidth]
+        var sizeValues: [Int64] = [Int64(inputHeight), Int64(inputWidth)]
+        let sizeData = NSMutableData(bytes: &sizeValues, length: 2 * MemoryLayout<Int64>.stride)
+        let sizeTensor = try ORTValue(tensorData: sizeData, elementType: .int64, shape: [1, 2])
+
+        let inputNames = try session.inputNames()
+        guard inputNames.count >= 2 else {
+            throw NSError(domain: "OCR", code: 30, userInfo: [NSLocalizedDescriptionKey: "DEIMDetector: expected at least 2 input names"])
+        }
+        let inputs: [String: ORTValue] = [
+            inputNames[0]: inputTensor,
+            inputNames[1]: sizeTensor
+        ]
+        let outputNames = try session.outputNames()
+        let results = try session.run(withInputs: inputs, outputNames: Set(outputNames), runOptions: ORTMemory.runOptions())
+
+        return try postprocess(outputs: results, outputNames: outputNames, metadata: metadata)
+    }
+
+    // MARK: - Preprocessing
+
+    func preprocess(image: CGImage) -> ([Float], Metadata) {
+        let origW = image.width
+        let origH = image.height
+        let maxWH = max(origW, origH)
+        let metadata = Metadata(originalWidth: origW, originalHeight: origH, maxWH: maxWH)
+        guard maxWH > 0 else { return ([], metadata) }
+
+        // Optimized: resize FIRST to scaled dimensions, then pad to input size.
+        // This avoids creating a full-resolution padded context (e.g., 4032x4032 = 63MB).
+        let ratio = Float(inputWidth) / Float(maxWH)
+        let scaledW = max(1, Int((Float(origW) * ratio).rounded()))
+        let scaledH = max(1, Int((Float(origH) * ratio).rounded()))
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+
+        // Create input-sized context (e.g., 800x800), fill black, draw resized image
+        guard let ctx = CGContext(data: nil, width: inputWidth, height: inputHeight,
+                                  bitsPerComponent: 8, bytesPerRow: inputWidth * 4,
+                                  space: colorSpace, bitmapInfo: bitmapInfo) else {
+            return ([], metadata)
+        }
+        ctx.setFillColor(CGColor(red: 0, green: 0, blue: 0, alpha: 1))
+        ctx.fill(CGRect(x: 0, y: 0, width: inputWidth, height: inputHeight))
+        ctx.interpolationQuality = .high
+        // CG has y-up: draw at top = y offset of (inputHeight - scaledH)
+        ctx.draw(image, in: CGRect(x: 0, y: CGFloat(inputHeight - scaledH), width: CGFloat(scaledW), height: CGFloat(scaledH)))
+
+        guard let data = ctx.data else { return ([], metadata) }
+        let ptr = data.bindMemory(to: UInt8.self, capacity: inputWidth * inputHeight * 4)
+
+        // Build NCHW tensor: divide by 255, subtract ImageNet means, divide by stds
+        let means: [Float] = [0.485, 0.456, 0.406]
+        let stds: [Float] = [0.229, 0.224, 0.225]
+        let pixelCount = inputWidth * inputHeight
+        var tensor = [Float](repeating: 0, count: 3 * pixelCount)
+
+        for y in 0..<inputHeight {
+            for x in 0..<inputWidth {
+                let pixelIdx = (y * inputWidth + x) * 4
+                for c in 0..<3 {
+                    let value = Float(ptr[pixelIdx + c]) / 255.0
+                    tensor[c * pixelCount + y * inputWidth + x] = (value - means[c]) / stds[c]
+                }
+            }
+        }
+
+        return (tensor, metadata)
+    }
+
+    // MARK: - Postprocessing
+
+    func postprocess(outputs: [String: ORTValue], outputNames: [String], metadata: Metadata) throws -> [Detection] {
+        // Outputs: labels, bboxes, scores, char_counts (4 outputs)
+        // or labels, bboxes, scores (3 outputs)
+        guard outputNames.count >= 3 else { return [] }
+
+        guard let labelsValue = outputs[outputNames[0]],
+              let bboxesValue = outputs[outputNames[1]],
+              let scoresValue = outputs[outputNames[2]] else {
+            return []
+        }
+
+        let labelsData = try labelsValue.tensorData() as Data
+        let bboxesData = try bboxesValue.tensorData() as Data
+        let scoresData = try scoresValue.tensorData() as Data
+
+        let labels = labelsData.withUnsafeBytes { Array($0.bindMemory(to: Int64.self)) }
+        let bboxes = bboxesData.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
+        let scores = scoresData.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
+
+        var charCounts: [Float]?
+        if outputNames.count >= 4, let charCountValue = outputs[outputNames[3]] {
+            let charCountData = try charCountValue.tensorData() as Data
+            let elementType = try charCountValue.tensorTypeAndShapeInfo().elementType
+            charCounts = DEIMDetector.decodeCharCounts(charCountData, elementType: elementType)
+        }
+
+        // The outputs are parallel arrays; read only as far as all of them reach.
+        let numDetections = min(scores.count, labels.count, bboxes.count / 4)
+        if let counts = charCounts, counts.count < numDetections { charCounts = nil }
+        var detections: [Detection] = []
+
+        // Scale factors: image was padded to maxWH x maxWH, then resized to input size
+        // The model outputs bboxes in input coordinates (0..inputWidth, 0..inputHeight)
+        // Scale back to padded image (maxWH x maxWH), which maps directly to original coords
+        let scaleX = Float(metadata.maxWH) / Float(inputWidth)
+        let scaleY = Float(metadata.maxWH) / Float(inputHeight)
+
+        for i in 0..<numDetections {
+            let score = scores[i]
+            // NDLOCR-Lite keeps only scores > conf_threshold (0.25); its score_threshold is unused.
+            // Without this, a stray caption at 0.217 on the modern sample became an extra line.
+            if score < scoreThreshold || score <= confThreshold { continue }
+
+            let label = Int(labels[i])
+            // Python code: class_index = int(label) - 1
+            let classIndex = label - 1
+            guard classIndex >= 0 else { continue }
+
+            let x1 = bboxes[i * 4 + 0] * scaleX
+            let y1 = bboxes[i * 4 + 1] * scaleY
+            let x2 = bboxes[i * 4 + 2] * scaleX
+            let y2 = bboxes[i * 4 + 3] * scaleY
+
+            let className = classNames[classIndex] ?? "class_\(classIndex)"
+
+            // Clamp and truncate. NDLOCR-Lite truncates (astype(np.int32)); rounding moved short lines
+            // by a pixel, enough for the 30-character model to read "(1)気送管" as "(1)気送信".
+            guard let box = Detection.clampedBox(x1, y1, x2, y2,
+                                                 width: metadata.originalWidth, height: metadata.originalHeight,
+                                                 rounding: .towardZero) else { continue }
+
+            let predCharCount = charCounts?[i] ?? 100.0
+
+            var det = Detection(
+                box: box, score: score, classId: classIndex,
+                className: className
+            )
+            det.predCharCount = predCharCount
+            detections.append(det)
+        }
+
+        // Sort by score descending
+        let sorted = detections.sorted { $0.score > $1.score }
+
+        // Apply NMS to remove overlapping detections
+        let nmsResult = DEIMDetector.applyNMS(sorted, iouThreshold: iouThreshold)
+
+        return Array(nmsResult.prefix(maxDetections))
+    }
+
+    /// The char_count output is the line-length class (1 = long, 2 = medium, 3 = short) that picks the
+    /// 100 / 50 / 30-character PARSeq model. DEIMv2 exports it as int64; reading those bytes as Float
+    /// gave denormals (≈0), so every line fell through to the 100-character model.
+    static func decodeCharCounts(_ data: Data, elementType: ORTTensorElementDataType) -> [Float] {
+        switch elementType {
+        case .int64:
+            return data.withUnsafeBytes { $0.bindMemory(to: Int64.self).map { Float($0) } }
+        case .int32:
+            return data.withUnsafeBytes { $0.bindMemory(to: Int32.self).map { Float($0) } }
+        default:
+            return data.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
+        }
+    }
+
+    // MARK: - NMS
+
+    /// Apply Non-Maximum Suppression to remove overlapping detections.
+    /// Only text lines suppress each other: a one-line heading or caption lies almost exactly
+    /// inside its own text_block / block_*, and letting the block win dropped the line
+    /// (the official NDLOCR-Lite applies no NMS at all and keeps those lines).
+    static func applyNMS(_ detections: [Detection], iouThreshold: Float) -> [Detection] {
+        var kept: [Detection] = []
+
+        for det in detections {
+            var shouldKeep = true
+            for existing in kept where det.isTextLine && existing.isTextLine {
+                if computeIoU(det.box, existing.box) > iouThreshold {
+                    shouldKeep = false
+                    break
+                }
+            }
+            if shouldKeep {
+                kept.append(det)
+            }
+        }
+
+        return kept
+    }
+
+    /// Compute Intersection over Union between two boxes [x1, y1, x2, y2].
+    private static func computeIoU(_ a: [Int], _ b: [Int]) -> Float {
+        guard a.count >= 4, b.count >= 4 else { return 0 }
+        let x1 = max(a[0], b[0])
+        let y1 = max(a[1], b[1])
+        let x2 = min(a[2], b[2])
+        let y2 = min(a[3], b[3])
+
+        let interW = max(0, x2 - x1)
+        let interH = max(0, y2 - y1)
+        let interArea = Float(interW * interH)
+
+        let areaA = Float((a[2] - a[0]) * (a[3] - a[1]))
+        let areaB = Float((b[2] - b[0]) * (b[3] - b[1]))
+        let unionArea = areaA + areaB - interArea
+
+        guard unionArea > 0 else { return 0 }
+        return interArea / unionArea
+    }
+}

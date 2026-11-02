@@ -1,0 +1,21 @@
+# env / secret files
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+credentials.json
+.npmrc
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+LocalOCR.xcodeproj/
+*.onnx
+
+.DS_Store
+.idea/
+.vscode/settings.json

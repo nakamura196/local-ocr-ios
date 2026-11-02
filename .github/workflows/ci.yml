@@ -1,0 +1,31 @@
+name: CI
+# Builds the app and runs the unit tests on a GitHub macOS runner (free for a public repo).
+# EndToEndTests download about 380 MB of models, so they are left out here; run them locally
+# (simulator or device). PPOCREngineTests' comparison with Python skips without PPOCR_REF_DIR.
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  unit-tests:
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Generate the Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+      - name: Pick an iPhone simulator
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available iPhone | grep -Eo '[0-9A-F]{8}-([0-9A-F]{4}-){3}[0-9A-F]{12}' | head -n 1)
+          echo "Using simulator $UDID"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+      - name: Unit tests
+        run: xcodebuild test -project LocalOCR.xcodeproj -scheme LocalOCR -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" -skip-testing:LocalOCRTests/EndToEndTests CODE_SIGNING_ALLOWED=NO
