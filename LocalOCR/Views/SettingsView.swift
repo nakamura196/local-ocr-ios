@@ -2,7 +2,7 @@ import SwiftUI
 import AVFoundation
 
 /// Settings (from KotenOCR): about, models, camera, appearance, language, tips, feedback, licenses, links.
-/// Left out until the matching features move over: translation and the onboarding replay.
+/// Translation is on-device AI only (KotenOCR's external APIs are left out).
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
@@ -11,6 +11,7 @@ struct SettingsView: View {
     @AppStorage(TiltMonitor.defaultsKey) private var showTiltGuide = true
     @AppStorage(Deskew.settingsKey) private var autoDeskew = true
     @State private var tipsReset = false
+    @State private var showOnboarding = false
     @State private var showRestartAlert = false
     @State private var cameraStatus: AVAuthorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
 
@@ -30,6 +31,7 @@ struct SettingsView: View {
                 Group {
                     aboutSection
                     modelsSection
+                    translationSection
                     cameraSection
                     themeSection
                     languageSection
@@ -85,6 +87,36 @@ struct SettingsView: View {
                         defaultValue: "画像も読み取った文字も、端末の外に送りません。インターネットを使うのは、読み取りモデルをダウンロードするときだけです。"))
                 .font(.footnote)
                 .foregroundColor(LOColor.inkSecondary)
+            Button {
+                showOnboarding = true
+            } label: {
+                Text(String(localized: "settings_show_onboarding", defaultValue: "使い方をもう一度見る"))
+            }
+            .accessibilityIdentifier("settings_show_onboarding")
+            .fullScreenCover(isPresented: $showOnboarding) {
+                // Replay only: finishing it just closes the cover.
+                OnboardingView(hasCompletedOnboarding: Binding(
+                    get: { !showOnboarding },
+                    set: { if $0 { showOnboarding = false } }
+                ))
+            }
+        }
+    }
+
+    // MARK: - Translation
+
+    private var translationSection: some View {
+        Section(header: Text(String(localized: "settings_translation", defaultValue: "現代語訳"))) {
+            NavigationLink {
+                TranslationSettingsView()
+            } label: {
+                Label {
+                    Text(String(localized: "settings_translation_nav", defaultValue: "現代語訳"))
+                } icon: {
+                    Image(systemName: "sparkles").foregroundColor(LOColor.ai)
+                }
+            }
+            .accessibilityIdentifier("settings_translation")
         }
     }
 

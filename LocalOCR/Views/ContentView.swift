@@ -29,6 +29,7 @@ struct ContentView: View {
     @State private var showHistory = false
     @State private var showSettings = false
     @AppStorage(SettingsKey.saveToLibrary) private var saveToLibrary = false
+    @AppStorage(OnboardingView.defaultsKey) private var hasCompletedOnboarding = false
     /// The history record of the page on screen, so later edits can go back to it.
     @State private var historyItemID: UUID?
     /// The result was opened from History: "back" returns to the list instead of the page.
@@ -125,6 +126,12 @@ struct ContentView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
+        .fullScreenCover(isPresented: Binding(
+            get: { !hasCompletedOnboarding && !Self.skipsOnboarding },
+            set: { if $0 { hasCompletedOnboarding = false } }
+        )) {
+            OnboardingView(hasCompletedOnboarding: $hasCompletedOnboarding)
+        }
         .fileImporter(isPresented: $showFiles, allowedContentTypes: [.image]) { res in
             guard case .success(let url) = res else { return }
             let scoped = url.startAccessingSecurityScopedResource()
@@ -150,11 +157,24 @@ struct ContentView: View {
         .onAppear {
             fallBackToInstalled()
             #if DEBUG
+            if UserDefaults.standard.bool(forKey: "demoOnboarding") { hasCompletedOnboarding = false }
             loadDemoImage()
             loadDemoSheet()
             #endif
         }
         .onChange(of: store.status) { _, _ in fallBackToInstalled() }
+    }
+
+    /// Debug screenshots with a `-demo…` argument skip the first-run introduction, except
+    /// `-demoOnboarding YES`, which shows it every time.
+    private static var skipsOnboarding: Bool {
+        #if DEBUG
+        let defaults = UserDefaults.standard
+        if defaults.bool(forKey: "demoOnboarding") { return false }
+        return ProcessInfo.processInfo.arguments.contains { $0.hasPrefix("-demo") }
+        #else
+        return false
+        #endif
     }
 
     #if DEBUG
@@ -251,7 +271,8 @@ struct ContentView: View {
             showCamera = false
             image = cg
             result = PageResult(engine: item.engineKind ?? .vision, image: cg,
-                                lines: item.detections, seconds: item.seconds ?? 0)
+                                lines: item.detections, seconds: item.seconds ?? 0,
+                                translation: item.translatedText)
             historyItemID = item.id
             cameFromHistory = true
         }

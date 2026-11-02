@@ -117,6 +117,14 @@ struct HistoryListView: View {
                             .lineLimit(1)
                     }
                     Text(String(format: String(localized: "lines_count_format", defaultValue: "%d 行"), item.detections.count))
+                    if item.translatedText != nil {
+                        Text(String(localized: "history_translated_badge", defaultValue: "訳あり"))
+                            .font(.caption2.weight(.semibold))
+                            .foregroundColor(LOColor.ai)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .overlay(RoundedRectangle(cornerRadius: 3).stroke(LOColor.ai, lineWidth: 1))
+                    }
                 }
                 .font(.caption2)
                 .foregroundColor(LOColor.inkSecondary)

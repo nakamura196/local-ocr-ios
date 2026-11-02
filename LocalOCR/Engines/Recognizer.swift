@@ -7,6 +7,8 @@ struct PageResult {
     let image: CGImage
     var lines: [Detection]
     let seconds: Double
+    /// The modern-language translation, if one was made (kept in History).
+    var translation: String? = nil
 
     var text: String { lines.filter { !$0.text.isEmpty }.map(\.text).joined(separator: "\n") }
 }

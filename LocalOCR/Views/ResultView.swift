@@ -32,6 +32,10 @@ struct ResultView: View {
     @State private var editingLine: EditingLine?
     @State private var editText = ""
     @State private var stampPhase = 0
+    @State private var tab: ResultTab = .text
+    @State private var translatedText: String?
+    @State private var isTranslating = false
+    @State private var translationError: String?
 
     // Zoom and pan of the page (same maths as KotenOCR).
     @State private var zoom: CGFloat = 1
@@ -51,6 +55,7 @@ struct ResultView: View {
         self.onBack = onBack
         self.onNew = onNew
         _detections = State(initialValue: result.lines)
+        _translatedText = State(initialValue: result.translation)
     }
 
     private var imageSize: CGSize { CGSize(width: result.image.width, height: result.image.height) }
@@ -79,16 +84,28 @@ struct ResultView: View {
                     confidenceControl
                         .padding(.horizontal, 24)
                         .padding(.top, 14)
+                    tabPicker
+                        .padding(.horizontal, 20)
+                        .padding(.top, 10)
                 }
 
-                lines
+                ZStack {
+                    if tab == .translation && !edit.isActive {
+                        translationPanel.transition(.opacity)
+                    } else {
+                        lines.transition(.opacity)
+                    }
+                }
+                .animation(.easeInOut(duration: 0.2), value: tab)
             }
-            .overlay(alignment: .bottom) { if !edit.isActive { bottomBar } }
+            .overlay(alignment: .bottom) { if !edit.isActive && !hidesBottomBar { bottomBar } }
         }
         .sheet(item: $editingLine) { line in editSheet(line.index) }
         .onAppear {
             playStampIfNeeded()
             #if DEBUG
+            // Screenshots: `-demoTranslation YES` opens the translation tab.
+            if UserDefaults.standard.bool(forKey: "demoTranslation") { tab = .translation }
             // Screenshots: `-demoBoxEdit YES` opens "Fix boxes" with the first line selected.
             if UserDefaults.standard.bool(forKey: "demoBoxEdit"), !detections.isEmpty {
                 selected = 0
@@ -452,7 +469,7 @@ struct ResultView: View {
             .buttonStyle(.loGlass)
 
             Button {
-                UIPasteboard.general.string = combinedText
+                UIPasteboard.general.string = copyText
                 LOHaptics.notify(.success)
                 withAnimation(.easeOut(duration: 0.2)) { copied = true }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
@@ -468,7 +485,7 @@ struct ResultView: View {
                 .frame(maxWidth: .infinity, minHeight: 52)
             }
             .buttonStyle(.loProminent)
-            .disabled(combinedText.isEmpty)
+            .disabled(copyText.isEmpty)
             .accessibilityIdentifier("copy_button")
         }
         .padding(.horizontal, 20)
@@ -568,6 +585,138 @@ struct ResultView: View {
     }
 
     private var combinedText: String { ConfidenceFilter.text(detections, threshold: threshold) }
+
+    /// Nothing to copy yet on the translation tab: the bar would cover the "translate" button.
+    private var hidesBottomBar: Bool { tab == .translation && (translatedText ?? "").isEmpty }
+
+    /// What "copy" copies: the text of the tab on screen.
+    private var copyText: String { tab == .translation ? (translatedText ?? "") : combinedText }
+
+    // MARK: Translation (on-device AI only, from KotenOCR)
+
+    private var tabPicker: some View {
+        Picker("", selection: $tab) {
+            Text(String(localized: "tab_text", defaultValue: "読み取り結果")).tag(ResultTab.text)
+            Text(String(localized: "tab_translation", defaultValue: "現代語訳")).tag(ResultTab.translation)
+        }
+        .pickerStyle(.segmented)
+        .accessibilityIdentifier("result_tab")
+    }
+
+    private var translationPanel: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                if isTranslating {
+                    // Soft light passes over placeholder lines while the model writes.
+                    VStack(alignment: .leading, spacing: 14) {
+                        ShimmerLine(widthFraction: 0.92)
+                        ShimmerLine(widthFraction: 0.8)
+                        ShimmerLine(widthFraction: 0.86)
+                        Text(String(localized: "translating", defaultValue: "翻訳中..."))
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(LOColor.inkSecondary)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 14)
+                    .transition(.opacity)
+                } else if let translated = translatedText, !translated.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Button(action: startTranslation) {
+                                Label(String(localized: "retranslate_button", defaultValue: "訳し直す"),
+                                      systemImage: "arrow.clockwise")
+                                    .font(.subheadline.weight(.semibold))
+                                    .padding(.horizontal, 14)
+                                    .frame(minHeight: 40)
+                            }
+                            .buttonStyle(.loGlass)
+                            .accessibilityIdentifier("retranslate_button")
+                            Spacer()
+                        }
+                        Text(translated)
+                            .font(.mincho(17, relativeTo: .body))
+                            .lineSpacing(8)
+                            .foregroundColor(LOColor.ink)
+                            .textSelection(.enabled)
+                            .accessibilityIdentifier("translation_text")
+                        Text(String(localized: "translation_disclaimer", defaultValue: "端末内の AI による訳と解説です。誤りが含まれることがあります。"))
+                            .font(.caption)
+                            .foregroundColor(LOColor.inkSecondary)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
+                    .transition(.opacity)
+                }
+
+                if let error = translationError {
+                    Text(error)
+                        .font(.callout)
+                        .foregroundColor(LOColor.danger)
+                        .padding(.horizontal, 20)
+                        .accessibilityIdentifier("translation_error")
+                }
+
+                if translatedText == nil && !isTranslating {
+                    VStack(spacing: 12) {
+                        Image(systemName: "text.book.closed")
+                            .font(.system(size: 30, weight: .light))
+                            .foregroundColor(LOColor.inkSecondary)
+                            .accessibilityHidden(true)
+                        Text(String(localized: "translation_empty", defaultValue: "現代語訳がまだありません"))
+                            .font(.mincho(17, relativeTo: .body))
+                            .foregroundColor(LOColor.inkSecondary)
+                        Text(String(localized: "translation_on_device_note", defaultValue: "端末内の AI で訳します。文字は端末の外に送りません。"))
+                            .font(.caption)
+                            .foregroundColor(LOColor.inkSecondary)
+                            .multilineTextAlignment(.center)
+                        Button(action: startTranslation) {
+                            Label(String(localized: "translate_button", defaultValue: "現代語訳"), systemImage: "sparkles")
+                                .font(.headline)
+                                .padding(.horizontal, 24)
+                                .frame(minHeight: 48)
+                        }
+                        .buttonStyle(.loProminent)
+                        .disabled(combinedText.isEmpty)
+                        .accessibilityIdentifier("translate_button")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 16)
+                }
+            }
+            .padding(.bottom, 96)
+            .animation(.easeInOut(duration: 0.2), value: isTranslating)
+        }
+    }
+
+    private func startTranslation() {
+        // Say why up front instead of starting a request that cannot run on this device.
+        let status = TranslationService.localAIStatus
+        guard status == .available else {
+            translationError = status.message
+            return
+        }
+        isTranslating = true
+        translationError = nil
+        let text = combinedText
+        Task {
+            do {
+                let translated = try await TranslationService.shared.translate(text: text)
+                await MainActor.run {
+                    translatedText = translated
+                    isTranslating = false
+                    if let id = historyItemID {
+                        HistoryManager.shared.updateTranslation(for: id, translatedText: translated)
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    translationError = error.localizedDescription
+                    isTranslating = false
+                }
+            }
+        }
+    }
 
     private func beginEditing() {
         showBoxes = true
@@ -688,4 +837,39 @@ struct ActivityView: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+enum ResultTab: Hashable {
+    case text
+    case translation
+}
+
+/// A placeholder line with soft light passing over it (1.2 s), shown while translating.
+private struct ShimmerLine: View {
+    let widthFraction: CGFloat
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var phase: CGFloat = -1
+
+    var body: some View {
+        GeometryReader { geo in
+            Capsule()
+                .fill(LOColor.mount)
+                .overlay {
+                    if !reduceMotion {
+                        LinearGradient(colors: [.clear, LOColor.washiCard.opacity(0.9), .clear],
+                                       startPoint: .leading, endPoint: .trailing)
+                            .frame(width: geo.size.width * 0.5)
+                            .offset(x: phase * geo.size.width)
+                    }
+                }
+                .clipShape(Capsule())
+                .frame(width: geo.size.width * widthFraction)
+        }
+        .frame(height: 14)
+        .accessibilityHidden(true)
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) { phase = 1 }
+        }
+    }
 }
