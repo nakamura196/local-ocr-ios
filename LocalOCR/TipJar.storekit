@@ -1,0 +1,91 @@
+{
+  "identifier" : "A7C3E9B1-4D2F-4E8A-9B6C-1F0D2E3A4B5C",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "0.99",
+      "familyShareable" : false,
+      "internalID" : "tip_small_001",
+      "localizations" : [
+        {
+          "description" : "開発を応援する小さなチップ",
+          "displayName" : "小さな応援",
+          "locale" : "ja"
+        },
+        {
+          "description" : "A small tip to support development",
+          "displayName" : "Small Tip",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.nakamura.localocr.tip.small",
+      "referenceName" : "Small Tip",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "2.99",
+      "familyShareable" : false,
+      "internalID" : "tip_medium_001",
+      "localizations" : [
+        {
+          "description" : "開発を応援するチップ",
+          "displayName" : "応援",
+          "locale" : "ja"
+        },
+        {
+          "description" : "A tip to support development",
+          "displayName" : "Medium Tip",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.nakamura.localocr.tip.medium",
+      "referenceName" : "Medium Tip",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "6.99",
+      "familyShareable" : false,
+      "internalID" : "tip_large_001",
+      "localizations" : [
+        {
+          "description" : "開発を大きく応援するチップ",
+          "displayName" : "大きな応援",
+          "locale" : "ja"
+        },
+        {
+          "description" : "A generous tip to support development",
+          "displayName" : "Large Tip",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.nakamura.localocr.tip.large",
+      "referenceName" : "Large Tip",
+      "type" : "Consumable"
+    }
+  ],
+  "settings" : {
+    "_defaultLocalization" : "ja",
+    "_applicationInternalID" : "app_001",
+    "_developerTeamID" : "Q6S8JS6GWV",
+    "_lastSynchronizedDate" : 0,
+    "_storeKitErrors" : [
+      {
+        "current" : {
+          "index" : 0,
+          "type" : "generic"
+        },
+        "enabled" : false,
+        "name" : "Load Products"
+      }
+    ]
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

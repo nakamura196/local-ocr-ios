@@ -136,3 +136,12 @@
 "settings_links" = "リンク";
 "settings_link_site" = "Local OCR のサイト";
 "settings_link_source" = "ソースコード（GitHub）";
+
+/* Tip jar (same tiers as KotenOCR) */
+"settings_tipjar" = "開発を応援";
+"tipjar_nav_title" = "応援する";
+"tipjar_title" = "Local OCR を応援";
+"tipjar_description" = "Local OCR をお役立ていただけましたら、\n開発を支えるチップをお願いいたします。";
+"tipjar_unavailable" = "現在、商品を取得できません。";
+"tipjar_thanks" = "ご支援ありがとうございます！";
+"tipjar_error_unverified" = "購入の検証に失敗しました";

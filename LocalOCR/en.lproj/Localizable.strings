@@ -136,3 +136,12 @@
 "settings_links" = "Links";
 "settings_link_site" = "Local OCR Website";
 "settings_link_source" = "Source Code (GitHub)";
+
+/* Tip jar (same tiers as KotenOCR) */
+"settings_tipjar" = "Support Us";
+"tipjar_nav_title" = "Tip Jar";
+"tipjar_title" = "Support Local OCR";
+"tipjar_description" = "If Local OCR is useful to you, consider leaving a tip to support development.";
+"tipjar_unavailable" = "Products are currently unavailable.";
+"tipjar_thanks" = "Thank you for your support!";
+"tipjar_error_unverified" = "Purchase verification failed";

@@ -31,6 +31,7 @@ struct SettingsView: View {
                     cameraSection
                     themeSection
                     languageSection
+                    tipJarSection
                     feedbackSection
                     licenseSection
                     linkSection
@@ -174,6 +175,23 @@ struct SettingsView: View {
             UserDefaults.standard.removeObject(forKey: "AppleLanguages")
         } else {
             UserDefaults.standard.set([language], forKey: "AppleLanguages")
+        }
+    }
+
+    // MARK: - Tip Jar
+
+    private var tipJarSection: some View {
+        Section(header: Text(String(localized: "settings_tipjar", defaultValue: "開発を応援"))) {
+            NavigationLink {
+                TipJarView()
+            } label: {
+                Label {
+                    Text(String(localized: "tipjar_nav_title", defaultValue: "応援する"))
+                } icon: {
+                    Image(systemName: "heart.fill").foregroundColor(LOColor.ai)
+                }
+            }
+            .accessibilityIdentifier("settings_tipjar")
         }
     }
 
