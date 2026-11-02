@@ -51,7 +51,7 @@ struct SampleSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text(String(localized: "sample_sheet_lead", defaultValue: "選ぶとすぐに読み取ります。"))
+                    Text(String(localized: "sample_sheet_lead", defaultValue: "選ぶとすぐに読み取ります。結果は履歴にも残ります。"))
                         .font(.subheadline)
                         .foregroundColor(LOColor.inkSecondary)
                         .padding(.horizontal, 4)

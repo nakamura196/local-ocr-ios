@@ -73,7 +73,7 @@
 /* Sample pages (titles and credits are the same as KotenOCR's) */
 "home_try_sample" = "サンプルの頁で試す";
 "sample_sheet_title" = "サンプルで試す";
-"sample_sheet_lead" = "選ぶとすぐに読み取ります。";
+"sample_sheet_lead" = "選ぶとすぐに読み取ります。結果は履歴にも残ります。";
 "sample_needs_download" = "要ダウンロード";
 "cancel" = "キャンセル";
 "sample_taketori_title" = "竹取物語";
@@ -85,3 +85,19 @@
 "sample_shibata_credit" = "写真: 柴田バネッサ（CC BY-SA 4.0）";
 "sample_modern_title" = "国立国会図書館スタッフ・マニュアル";
 "sample_ndl_credit" = "国立国会図書館デジタルコレクション";
+
+/* History and export (from KotenOCR) */
+"history_title" = "履歴";
+"history_button" = "履歴";
+"history_delete_all" = "すべて削除";
+"history_item_label" = "読み取り結果";
+"history_delete_all_title" = "すべての履歴を削除";
+"history_delete_all_message" = "すべての読み取りの履歴を削除しますか？この操作は元に戻せません。";
+"history_delete_item" = "この履歴を削除";
+"history_delete_item_title" = "この履歴を削除しますか？";
+"history_empty_title" = "まだ記録はありません";
+"history_empty_body" = "読み取った資料はここに残ります。";
+"close" = "閉じる";
+"home_recent" = "最近の読み取り";
+"home_all_history" = "すべて見る";
+"lines_count_format" = "%d 行";

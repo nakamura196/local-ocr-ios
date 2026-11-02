@@ -73,7 +73,7 @@
 /* Sample pages (titles and credits are the same as KotenOCR's) */
 "home_try_sample" = "Try a sample page";
 "sample_sheet_title" = "Try a Sample";
-"sample_sheet_lead" = "Choose a page to read it right away.";
+"sample_sheet_lead" = "Choose a page to read it right away. The result is also saved to History.";
 "sample_needs_download" = "Download needed";
 "cancel" = "Cancel";
 "sample_taketori_title" = "The Tale of the Bamboo Cutter";
@@ -85,3 +85,19 @@
 "sample_shibata_credit" = "Photo: Shibata Vanessa (CC BY-SA 4.0)";
 "sample_modern_title" = "NDL Staff Manual (1963)";
 "sample_ndl_credit" = "National Diet Library Digital Collections";
+
+/* History and export (from KotenOCR) */
+"history_title" = "History";
+"history_button" = "History";
+"history_delete_all" = "Delete All";
+"history_item_label" = "Reading result";
+"history_delete_all_title" = "Delete All History";
+"history_delete_all_message" = "Are you sure you want to delete all reading history? This cannot be undone.";
+"history_delete_item" = "Delete this item";
+"history_delete_item_title" = "Delete this history item?";
+"history_empty_title" = "No readings yet";
+"history_empty_body" = "Documents you read will be kept here.";
+"close" = "Close";
+"home_recent" = "Recent readings";
+"home_all_history" = "See all";
+"lines_count_format" = "%d lines";

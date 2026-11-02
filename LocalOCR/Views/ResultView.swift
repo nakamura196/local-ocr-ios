@@ -4,6 +4,8 @@ import SwiftUI
 /// A line and its box share a colour; tapping either highlights both.
 struct ResultView: View {
     let result: PageResult
+    /// "履歴" when opened from History; nil shows "戻る" (back to the page to read it again).
+    var backTitle: String? = nil
     let onBack: () -> Void
     let onNew: () -> Void
 
@@ -39,10 +41,12 @@ struct ResultView: View {
     private var header: some View {
         HStack {
             Button(action: onBack) {
-                BackLabel(title: String(localized: "back", defaultValue: "戻る"))
+                BackLabel(title: backTitle ?? String(localized: "back", defaultValue: "戻る"))
             }
             .buttonStyle(.loGlass)
-            .accessibilityHint(Text(String(localized: "back_to_page_hint", defaultValue: "別の方式で読み直せます")))
+            .accessibilityHint(backTitle == nil
+                               ? Text(String(localized: "back_to_page_hint", defaultValue: "別の方式で読み直せます"))
+                               : Text(""))
             Spacer()
             ShareLink(item: result.text) {
                 IconLabel(systemName: "square.and.arrow.up")

@@ -14,6 +14,11 @@ struct ContentView: View {
     @State private var showCamera = false
     @State private var showModels = false
     @State private var showSamples = false
+    @State private var showHistory = false
+    /// The history record of the page on screen, so later edits can go back to it.
+    @State private var historyItemID: UUID?
+    /// The result was opened from History: "back" returns to the list instead of the page.
+    @State private var cameFromHistory = false
     @State private var image: CGImage?
     @State private var result: PageResult?
     @State private var errorMessage: String?
@@ -24,7 +29,15 @@ struct ContentView: View {
         ZStack {
             if let result {
                 ResultView(result: result,
-                           onBack: { withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) { self.result = nil } },
+                           backTitle: cameFromHistory ? String(localized: "history_title", defaultValue: "履歴") : nil,
+                           onBack: {
+                               if cameFromHistory {
+                                   withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) { reset() }
+                                   showHistory = true
+                               } else {
+                                   withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) { self.result = nil }
+                               }
+                           },
                            onNew: { withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) { reset() } })
                     .transition(LOMotion.rise(reduceMotion: reduceMotion))
             } else if let image {
@@ -38,7 +51,9 @@ struct ContentView: View {
                          onCamera: { showCamera = true },
                          onFiles: { showFiles = true },
                          onModels: { showModels = true },
-                         onSample: { showSamples = true })
+                         onSample: { showSamples = true },
+                         onHistory: { showHistory = true },
+                         onOpenHistoryItem: { item in loadHistoryItem(item) })
                     .transition(.opacity)
             }
         }
@@ -55,6 +70,10 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showSamples) {
             SampleSheet(onSelect: { page in loadSample(page) })
+        }
+        .sheet(isPresented: $showHistory) {
+            HistoryListView(onSelect: { item in loadHistoryItem(item) },
+                            onStartCamera: { showCamera = true })
         }
         .fullScreenCover(isPresented: $showCamera) {
             CameraPicker { picked in
@@ -106,6 +125,7 @@ struct ContentView: View {
     private func loadDemoSheet() {
         if UserDefaults.standard.bool(forKey: "demoModels") { showModels = true }
         if UserDefaults.standard.bool(forKey: "demoSamples") { showSamples = true }
+        if UserDefaults.standard.bool(forKey: "demoHistory") { showHistory = true }
     }
     #endif
 
@@ -116,12 +136,29 @@ struct ContentView: View {
     private func reset() {
         image = nil
         result = nil
+        historyItemID = nil
+        cameFromHistory = false
     }
 
     private func setImage(_ ui: UIImage) {
         withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) {
             image = ui.normalizedCGImage()
             result = nil
+            historyItemID = nil
+            cameFromHistory = false
+        }
+    }
+
+    /// Shows a saved page as it was read: the stored image (already straightened) and its lines.
+    private func loadHistoryItem(_ item: HistoryItem) {
+        guard let ui = UIImage(contentsOfFile: HistoryManager.shared.imageURL(for: item).path),
+              let cg = ui.normalizedCGImage() else { return }
+        withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) {
+            image = cg
+            result = PageResult(engine: item.engineKind ?? .vision, image: cg,
+                                lines: item.detections, seconds: item.seconds ?? 0)
+            historyItemID = item.id
+            cameFromHistory = true
         }
     }
 
@@ -144,7 +181,14 @@ struct ContentView: View {
         do {
             let r = try await recognizer.run(engine, on: image)
             LOHaptics.notify(.success)
-            withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) { result = r }
+            // Every reading is kept, also a second reading of the same page with another engine.
+            let id = HistoryManager.shared.save(image: r.image, detections: r.lines, text: r.text,
+                                                engine: r.engine, seconds: r.seconds)
+            withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) {
+                result = r
+                historyItemID = id
+                cameFromHistory = false
+            }
         } catch {
             LOHaptics.notify(.error)
             errorMessage = error.localizedDescription
@@ -162,10 +206,15 @@ struct HomeView: View {
     let onFiles: () -> Void
     let onModels: () -> Void
     let onSample: () -> Void
+    let onHistory: () -> Void
+    let onOpenHistoryItem: (HistoryItem) -> Void
 
+    @ObservedObject private var historyManager = HistoryManager.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var appeared = 0
+
+    private var recentItems: [HistoryItem] { Array(historyManager.items.prefix(3)) }
 
     var body: some View {
         GeometryReader { geo in
@@ -179,7 +228,11 @@ struct HomeView: View {
 
                     VStack(alignment: .leading, spacing: 0) {
                         Spacer(minLength: 28)
-                        intro
+                        if recentItems.isEmpty {
+                            intro
+                        } else {
+                            recentSection
+                        }
                         Spacer(minLength: 28)
                         engines
                             .padding(.bottom, 22)
@@ -216,6 +269,12 @@ struct HomeView: View {
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 8)
+            Button(action: onHistory) {
+                IconLabel(systemName: "clock")
+            }
+            .buttonStyle(.loGlassCircle)
+            .accessibilityLabel(Text(String(localized: "history_button", defaultValue: "履歴")))
+            .accessibilityIdentifier("home_history_button")
             Button(action: onModels) {
                 IconLabel(systemName: "square.and.arrow.down.on.square")
             }
@@ -245,6 +304,49 @@ struct HomeView: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 32)
         .accessibilityElement(children: .combine)
+    }
+
+    // MARK: Recent pages
+
+    private var recentSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(String(localized: "home_recent", defaultValue: "最近の読み取り"))
+                    .font(.mincho(16, relativeTo: .headline, bold: true))
+                    .foregroundColor(LOColor.ink)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer()
+                Button(action: onHistory) {
+                    Text(String(localized: "home_all_history", defaultValue: "すべて見る"))
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(LOColor.ai)
+                }
+            }
+            .padding(.horizontal, 24)
+            HStack(alignment: .top, spacing: 12) {
+                ForEach(Array(recentItems.enumerated()), id: \.element.id) { index, item in
+                    Button { onOpenHistoryItem(item) } label: {
+                        RecentThumbnail(item: item, height: recentThumbnailHeight)
+                    }
+                    .buttonStyle(PaperCardButtonStyle())
+                    .accessibilityLabel(Text(HistoryListView.accessibilityLabel(for: item)))
+                    .accessibilityIdentifier("home_recent_\(index)")
+                }
+            }
+            // With one or two pages the tiles grow and sit in the middle, so the page does not look empty.
+            .frame(maxWidth: recentItems.count == 1 ? 200 : .infinity)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, recentItems.count == 2 ? 36 : 20)
+        }
+    }
+
+    /// Smaller than KotenOCR's: the engine cards also have to fit on the home screen.
+    private var recentThumbnailHeight: CGFloat {
+        switch recentItems.count {
+        case 1: return 200
+        case 2: return 150
+        default: return 112
+        }
     }
 
     private var engines: some View {
