@@ -3,7 +3,7 @@
 #
 # Prerequisites:
 #   - xcodegen, Xcode with the team Q6S8JS6GWV signed in
-#   - For --upload: the app record for com.nakamura196.localocr exists in App Store Connect,
+#   - For --upload: the iOS platform is added to the "Local OCR" app (com.nakamura.localocr, shared with the macOS app),
 #     and the App Store Connect API key is set up as for KotenOCR
 #     (APP_STORE_API_KEY / APP_STORE_API_ISSUER in ~/git/hi/miyako/koten-ocr-ios/.env,
 #      key file at ~/.private_keys/AuthKey_<KEY_ID>.p8)

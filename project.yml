@@ -33,7 +33,7 @@ targets:
         INFOPLIST_KEY_NSCameraUsageDescription: "文字を読み取る資料を撮影するために使います。画像は端末の外に送りません。"
         INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "画像を写真に保存するために使います。"
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
-        PRODUCT_BUNDLE_IDENTIFIER: com.nakamura196.localocr
+        PRODUCT_BUNDLE_IDENTIFIER: com.nakamura.localocr
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
         DEVELOPMENT_TEAM: "Q6S8JS6GWV"
@@ -70,7 +70,7 @@ targets:
       - target: LocalOCR
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.nakamura196.localocr.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.nakamura.localocr.tests
         GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/LocalOCR.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LocalOCR"
         BUNDLE_LOADER: "$(TEST_HOST)"
