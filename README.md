@@ -29,6 +29,10 @@ Support and excluded from iCloud backup.
 The NDL pipelines are shared with KotenOCR (`LocalOCR/OCR/`). The PP-OCRv6
 pipeline is a port of the desktop app's `ppocr` package.
 
+Every reading is kept in History on the device (image, lines and engine), and a
+result can be exported as TXT or PDF (the page image, then the text). Both are
+ported from KotenOCR (`LocalOCR/History/`, `LocalOCR/Export/`).
+
 ### Development
 
 Xcode and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
@@ -66,6 +70,9 @@ They are in `LocalOCR/Resources/`.
 くずし字・近代の活字・多言語の活字を読む道具（モデル）は、アプリの「読み取りモデル」の画面から、使うものだけダウンロードします。
 Apple Vision はダウンロードなしで使えます。
 ダウンロードのあとは、画像も結果も端末の外に送りません。
+
+読み取った頁は、端末の中の「履歴」に残ります（画像・行・使った方式）。
+結果は TXT か PDF（1 枚目に画像、2 枚目から本文）で書き出せます。
 
 「サンプルの頁で試す」の 5 枚は KotenOCR と同じです。
 『竹取物語』・『国立国会図書館スタッフ・マニュアル』（国立国会図書館デジタルコレクション）、

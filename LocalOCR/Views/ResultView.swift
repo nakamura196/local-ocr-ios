@@ -12,6 +12,8 @@ struct ResultView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selected: Int?
     @State private var copied = false
+    /// A TXT or PDF written to the temporary folder, waiting to be handed to the share sheet.
+    @State private var exportFile: ExportFile?
 
     var body: some View {
         GeometryReader { geo in
@@ -48,11 +50,32 @@ struct ResultView: View {
                                ? Text(String(localized: "back_to_page_hint", defaultValue: "別の方式で読み直せます"))
                                : Text(""))
             Spacer()
-            ShareLink(item: result.text) {
+            Menu {
+                ShareLink(item: result.text) {
+                    Label(String(localized: "share_text", defaultValue: "テキストを共有"), systemImage: "text.bubble")
+                }
+                Button {
+                    if let url = ExportManager.exportAsTXT(text: result.text) { exportFile = ExportFile(url: url) }
+                } label: {
+                    Label(String(localized: "export_txt", defaultValue: "TXTで書き出す"), systemImage: "doc.text")
+                }
+                Button {
+                    if let url = ExportManager.exportAsPDF(text: result.text, image: result.image) { exportFile = ExportFile(url: url) }
+                } label: {
+                    Label(String(localized: "export_pdf", defaultValue: "PDFで書き出す"), systemImage: "doc.richtext")
+                }
+            } label: {
                 IconLabel(systemName: "square.and.arrow.up")
+                    .foregroundColor(LOColor.ink)
+                    .loGlass(.regular, in: Circle(), interactive: true)
             }
-            .buttonStyle(.loGlassCircle)
+            .disabled(result.lines.isEmpty)
             .accessibilityLabel(Text(String(localized: "share", defaultValue: "共有")))
+            .accessibilityIdentifier("share_menu")
+        }
+        .sheet(item: $exportFile) { file in
+            ActivityView(items: [file.url])
+                .presentationDetents([.medium, .large])
         }
     }
 
@@ -220,4 +243,21 @@ private struct LineRow: View {
         .overlay(alignment: .bottom) { LOColor.rule.opacity(0.5).frame(height: 0.5).padding(.leading, 54) }
         .contentShape(Rectangle())
     }
+}
+
+/// A written export file. Identifiable so a sheet can present it.
+struct ExportFile: Identifiable {
+    let url: URL
+    var id: URL { url }
+}
+
+/// The system share sheet for files (ShareLink cannot wait for a file that is written on tap).
+struct ActivityView: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

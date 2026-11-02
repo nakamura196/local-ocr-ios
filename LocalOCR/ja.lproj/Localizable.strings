@@ -101,3 +101,6 @@
 "home_recent" = "最近の読み取り";
 "home_all_history" = "すべて見る";
 "lines_count_format" = "%d 行";
+"share_text" = "テキストを共有";
+"export_txt" = "TXTで書き出す";
+"export_pdf" = "PDFで書き出す";

@@ -101,3 +101,6 @@
 "home_recent" = "Recent readings";
 "home_all_history" = "See all";
 "lines_count_format" = "%d lines";
+"share_text" = "Share Text";
+"export_txt" = "Export TXT";
+"export_pdf" = "Export PDF";
