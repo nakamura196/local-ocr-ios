@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var showFiles = false
     @State private var showCamera = false
     @State private var showModels = false
+    @State private var showSamples = false
     @State private var image: CGImage?
     @State private var result: PageResult?
     @State private var errorMessage: String?
@@ -36,7 +37,8 @@ struct ContentView: View {
                 HomeView(engineRaw: $engineRaw, photoItem: $photoItem,
                          onCamera: { showCamera = true },
                          onFiles: { showFiles = true },
-                         onModels: { showModels = true })
+                         onModels: { showModels = true },
+                         onSample: { showSamples = true })
                     .transition(.opacity)
             }
         }
@@ -50,6 +52,9 @@ struct ContentView: View {
                         }
                     }
             }
+        }
+        .sheet(isPresented: $showSamples) {
+            SampleSheet(onSelect: { page in loadSample(page) })
         }
         .fullScreenCover(isPresented: $showCamera) {
             CameraPicker { picked in
@@ -100,6 +105,7 @@ struct ContentView: View {
 
     private func loadDemoSheet() {
         if UserDefaults.standard.bool(forKey: "demoModels") { showModels = true }
+        if UserDefaults.standard.bool(forKey: "demoSamples") { showSamples = true }
     }
     #endif
 
@@ -116,6 +122,19 @@ struct ContentView: View {
         withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) {
             image = ui.normalizedCGImage()
             result = nil
+        }
+    }
+
+    /// Opens a bundled sample page. If its engine is downloaded, reads it straight away;
+    /// otherwise leaves the page open and shows the models screen.
+    private func loadSample(_ page: SamplePage) {
+        guard let ui = page.loadImage() else { return }
+        setImage(ui)
+        if store.status[page.engine] == .installed {
+            engineRaw = page.engine.rawValue
+            Task { await read() }
+        } else {
+            showModels = true
         }
     }
 
@@ -142,6 +161,7 @@ struct HomeView: View {
     let onCamera: () -> Void
     let onFiles: () -> Void
     let onModels: () -> Void
+    let onSample: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -166,6 +186,8 @@ struct HomeView: View {
                         mainCard
                         secondaryRow
                             .padding(.top, 12)
+                        sampleLink
+                            .padding(.top, 8)
                         privacyNote
                             .padding(.top, 16)
                     }
@@ -327,6 +349,26 @@ struct HomeView: View {
         .padding(.horizontal, 8)
         .frame(maxWidth: .infinity, minHeight: 92)
         .paperCard()
+    }
+
+    /// A quiet text link: try the app on a bundled page without a book at hand.
+    private var sampleLink: some View {
+        Button(action: onSample) {
+            HStack(spacing: 6) {
+                Image(systemName: "book.pages")
+                    .accessibilityHidden(true)
+                Text(String(localized: "home_try_sample", defaultValue: "サンプルの頁で試す"))
+                    .underline(color: LOColor.ai.opacity(0.5))
+            }
+            .font(.mincho(15, relativeTo: .subheadline))
+            .foregroundColor(LOColor.ink)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("home_sample_button")
+        .padding(.horizontal, 20)
     }
 
     private var privacyNote: some View {

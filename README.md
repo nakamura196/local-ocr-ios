@@ -50,6 +50,14 @@ MIT — see [`LICENSE`](LICENSE). The models carry their own terms: the two NDL
 models are CC BY 4.0 (National Diet Library, Japan), the PP-OCR models are
 Apache-2.0 (PaddlePaddle).
 
+The five pages behind "Try a sample page" are the same as KotenOCR's:
+Taketori Monogatari and the NDL Staff Manual (National Diet Library Digital Collections);
+The Tale of Genji (image courtesy of the University of Tokyo General Library / transformed);
+the order by Kikuchi Takemitsu from Komonjo Jidai Kagami (National Diet Library Digital Collections);
+and the statement by Shibata Tarōkichi (photo by Shibata Vanessa,
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), via Wikimedia Commons).
+They are in `LocalOCR/Resources/`.
+
 ## 日本語
 
 画像に写っている文字を、iPhone・iPad の中だけで読み取るアプリです。
@@ -58,3 +66,9 @@ Apache-2.0 (PaddlePaddle).
 くずし字・近代の活字・多言語の活字を読む道具（モデル）は、アプリの「読み取りモデル」の画面から、使うものだけダウンロードします。
 Apple Vision はダウンロードなしで使えます。
 ダウンロードのあとは、画像も結果も端末の外に送りません。
+
+「サンプルの頁で試す」の 5 枚は KotenOCR と同じです。
+『竹取物語』・『国立国会図書館スタッフ・マニュアル』（国立国会図書館デジタルコレクション）、
+『源氏物語』（東京大学総合図書館所蔵）を改変。
+菊池武光 施行状: 『古文書時代鑑』（国立国会図書館デジタルコレクション）。
+柴田太郎吉 明細書: 写真 柴田バネッサ、[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)、Wikimedia Commons より。

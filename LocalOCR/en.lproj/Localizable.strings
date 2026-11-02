@@ -69,3 +69,19 @@
 "new_image" = "Next Image";
 "copied" = "Copied";
 "copy_all" = "Copy All Text";
+
+/* Sample pages (titles and credits are the same as KotenOCR's) */
+"home_try_sample" = "Try a sample page";
+"sample_sheet_title" = "Try a Sample";
+"sample_sheet_lead" = "Choose a page to read it right away.";
+"sample_needs_download" = "Download needed";
+"cancel" = "Cancel";
+"sample_taketori_title" = "The Tale of the Bamboo Cutter";
+"sample_genji_title" = "The Tale of Genji: Kiritsubo";
+"sample_genji_credit" = "Image courtesy of the University of Tokyo General Library - The Tale of Genji / transformed";
+"sample_kikuchi_title" = "Order by Kikuchi Takemitsu (old document)";
+"sample_kikuchi_credit" = "Komonjo Jidai Kagami (NDL Digital Collections)";
+"sample_shibata_title" = "Statement by Shibata Tarōkichi (photo taken at an angle)";
+"sample_shibata_credit" = "Photo: Shibata Vanessa (CC BY-SA 4.0)";
+"sample_modern_title" = "NDL Staff Manual (1963)";
+"sample_ndl_credit" = "National Diet Library Digital Collections";
