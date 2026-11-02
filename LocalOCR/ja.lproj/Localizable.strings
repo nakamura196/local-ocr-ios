@@ -170,3 +170,36 @@
 "box_hint_add" = "画像をなぞって、新しい枠を描く";
 "box_hint_split" = "分けたい位置をタップ";
 "box_hint_merge" = "1つ選んでから、つなげる枠をタップ";
+
+/* Camera, crop and perspective correction (from KotenOCR) */
+"camera_capture_failed" = "撮影に失敗しました。もう一度お試しください。";
+"camera_frame_hint" = "ページ全体を枠に入れてください";
+"camera_no_camera" = "カメラが利用できません\n写真ピッカーから画像を選択してください";
+"camera_permission_denied" = "カメラが許可されていません。設定アプリでカメラへのアクセスを許可してください。写真ライブラリから画像を選ぶこともできます。";
+"camera_unavailable_body" = "「設定」アプリで、Local OCR の「カメラ」をオンにしてください。撮った画像は端末の外に出ません。";
+"camera_unavailable_title" = "カメラが使えません";
+"capture_button" = "撮影";
+"coach_crop_corner" = "角を動かして\n範囲を選ぶ";
+"coach_shutter" = "ここを押して撮影";
+"crop_apply" = "切り取り";
+"crop_auto_correct" = "自動補正";
+"crop_mode_quad" = "4点補正";
+"crop_mode_rect" = "矩形";
+"crop_reset_zoom" = "拡大をリセット";
+"crop_rotate" = "回転";
+"crop_skip" = "スキップ";
+"crop_tip" = "四隅の藍の点を動かして、読みたい所を囲みます";
+"crop_title" = "範囲を選ぶ";
+"crop_undo_correct" = "元に戻す";
+"flash_off" = "フラッシュ オフ";
+"flash_on" = "フラッシュ オン";
+"home_button" = "ホーム";
+"home_choose_photo" = "写真から選ぶ";
+"ocr_error_retake" = "撮り直す";
+"retrim" = "再切り取り";
+"scan_document" = "書類スキャン";
+"settings_auto_deskew" = "傾きを自動で補正（NDL の方式）";
+"settings_show_tilt_guide" = "傾きの案内を表示";
+"settings_show_tips_again" = "操作のヒントをもう一度表示";
+"tilt_hint" = "資料と平行に構えてください";
+"tilt_try_scanner" = "書類スキャンも使えます";

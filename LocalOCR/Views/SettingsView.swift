@@ -2,13 +2,15 @@ import SwiftUI
 import AVFoundation
 
 /// Settings (from KotenOCR): about, models, camera, appearance, language, tips, feedback, licenses, links.
-/// Left out until the matching features move over: translation, onboarding and tips replay, the tilt guide
-/// and auto-deskew (they belong to KotenOCR's own camera).
+/// Left out until the matching features move over: translation and the onboarding replay.
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
     @AppStorage("appLanguage") private var appLanguage: String = "system"
     @AppStorage(SettingsKey.saveToLibrary) private var saveToLibrary = false
+    @AppStorage(TiltMonitor.defaultsKey) private var showTiltGuide = true
+    @AppStorage(Deskew.settingsKey) private var autoDeskew = true
+    @State private var tipsReset = false
     @State private var showRestartAlert = false
     @State private var cameraStatus: AVAuthorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
 
@@ -137,6 +139,31 @@ struct SettingsView: View {
             Toggle(String(localized: "settings_save_to_library", defaultValue: "撮った写真を写真ライブラリに保存"),
                    isOn: $saveToLibrary)
                 .accessibilityIdentifier("settings_save_to_library")
+
+            Toggle(String(localized: "settings_show_tilt_guide", defaultValue: "傾きの案内を表示"),
+                   isOn: $showTiltGuide)
+                .accessibilityIdentifier("settings_show_tilt_guide")
+            // NDL engines only: Vision and PP-OCR read the page as it is.
+            Toggle(String(localized: "settings_auto_deskew", defaultValue: "傾きを自動で補正（NDL の方式）"),
+                   isOn: $autoDeskew)
+                .accessibilityIdentifier("settings_auto_deskew")
+
+            Button {
+                CoachMark.resetAll()
+                tipsReset = true
+            } label: {
+                HStack {
+                    Text(String(localized: "settings_show_tips_again", defaultValue: "操作のヒントをもう一度表示"))
+                    Spacer()
+                    if tipsReset {
+                        Image(systemName: "checkmark")
+                            .foregroundColor(LOColor.ai)
+                            .accessibilityHidden(true)
+                    }
+                }
+            }
+            .accessibilityIdentifier("settings_show_tips_again")
+            .accessibilityAddTraits(tipsReset ? [.isSelected] : [])
         }
     }
 

@@ -10,7 +10,7 @@ final class BoxEditRereadTests: XCTestCase {
     private func image(_ name: String) throws -> CGImage {
         let bundle = Bundle(for: BoxEditRereadTests.self)
         guard let path = bundle.path(forResource: name, ofType: "jpg"),
-              let ui = UIImage(contentsOfFile: path), let cg = ui.normalizedCGImage() else {
+              let ui = UIImage(contentsOfFile: path), let cg = ui.normalizedCGImage else {
             throw XCTSkip("sample not found: \(name).jpg")
         }
         return cg

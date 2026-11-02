@@ -1,8 +1,12 @@
 import SwiftUI
 import PhotosUI
 import UniformTypeIdentifiers
+import Photos
 
-/// Holds the three screens (home → page → result) and the pickers they share.
+/// Where the page on screen came from: camera pages may be saved to the photo library.
+enum PageSource { case camera, library, sample }
+
+/// Holds the screens (home → camera → crop → page → result) and the pickers they share.
 struct ContentView: View {
     @EnvironmentObject var store: ModelStore
     @EnvironmentObject var recognizer: Recognizer
@@ -11,7 +15,15 @@ struct ContentView: View {
 
     @State private var photoItem: PhotosPickerItem?
     @State private var showFiles = false
+    /// The app's own camera is on screen (from KotenOCR).
     @State private var showCamera = false
+    /// The page before cropping, kept for "re-crop". nil for samples and history.
+    @State private var preCropImage: CGImage?
+    @State private var cropping = false
+    /// New id for each crop session, so the crop screen starts from the whole page again.
+    @State private var cropSessionID = UUID()
+    /// "Back" and "next image" return to the camera (the page was taken or picked there).
+    @State private var returnToCamera = false
     @State private var showModels = false
     @State private var showSamples = false
     @State private var showHistory = false
@@ -42,18 +54,47 @@ struct ContentView: View {
                                    withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) { self.result = nil }
                                }
                            },
-                           onNew: { withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) { reset() } })
+                           onNew: { withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) { leavePage() } })
                     .id(historyItemID)
+                    .transition(LOMotion.rise(reduceMotion: reduceMotion))
+            } else if cropping, let preCropImage {
+                CropView(image: preCropImage,
+                         onCrop: { cropped, source in
+                             // Keep any rotation done in the crop screen for "re-crop".
+                             withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) {
+                                 self.preCropImage = source
+                                 image = cropped
+                                 cropping = false
+                             }
+                         },
+                         onSkip: { displayed in
+                             withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) {
+                                 self.preCropImage = displayed
+                                 image = displayed
+                                 cropping = false
+                             }
+                         },
+                         onCancel: { withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) { leavePage() } })
+                    .id(cropSessionID)
                     .transition(LOMotion.rise(reduceMotion: reduceMotion))
             } else if let image {
                 PageView(image: image, engineRaw: $engineRaw,
-                         onBack: { withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) { reset() } },
+                         canRecrop: preCropImage != nil,
+                         onBack: { withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) { leavePage() } },
+                         onRecrop: { recrop() },
                          onModels: { showModels = true },
                          onRead: { Task { await read() } })
                     .transition(LOMotion.rise(reduceMotion: reduceMotion))
+            } else if showCamera {
+                CameraScreen(photoItem: $photoItem,
+                             onCapture: { cg in startCropping(cg, from: .camera) },
+                             onHome: { withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) { showCamera = false } },
+                             onHistory: { showHistory = true },
+                             onSettings: { showSettings = true })
+                    .transition(.opacity)
             } else {
                 HomeView(engineRaw: $engineRaw, photoItem: $photoItem,
-                         onCamera: { showCamera = true },
+                         onCamera: { withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) { showCamera = true } },
                          onFiles: { showFiles = true },
                          onModels: { showModels = true },
                          onSample: { showSamples = true },
@@ -79,30 +120,23 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showHistory) {
             HistoryListView(onSelect: { item in loadHistoryItem(item) },
-                            onStartCamera: { showCamera = true })
+                            onStartCamera: { reset(); showCamera = true })
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
-        }
-        .fullScreenCover(isPresented: $showCamera) {
-            CameraPicker { picked in
-                guard let picked else { return }
-                if saveToLibrary { UIImageWriteToSavedPhotosAlbum(picked, nil, nil, nil) }
-                setImage(picked)
-            }
-            .ignoresSafeArea()
         }
         .fileImporter(isPresented: $showFiles, allowedContentTypes: [.image]) { res in
             guard case .success(let url) = res else { return }
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-            if let data = try? Data(contentsOf: url), let ui = UIImage(data: data) { setImage(ui) }
+            if let cg = ImageIntake.decode(fileURL: url) { startCropping(cg, from: .library) }
         }
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
             Task {
-                if let data = try? await item.loadTransferable(type: Data.self), let ui = UIImage(data: data) {
-                    setImage(ui)
+                // Decoded straight to ≤ 4096 px: library photos from recent iPhones are 24 or 48 MP.
+                if let data = try? await item.loadTransferable(type: Data.self), let cg = ImageIntake.decode(data) {
+                    startCropping(cg, from: .library)
                 }
                 photoItem = nil
             }
@@ -124,12 +158,18 @@ struct ContentView: View {
     }
 
     #if DEBUG
-    /// Screenshots: `-demoImage <path>` opens that file, `-demoRead YES` also reads it.
+    /// Screenshots: `-demoImage <path>` opens that file, `-demoRead YES` also reads it,
+    /// `-demoCrop YES` opens it in the crop screen instead. `-demoCamera YES` opens the camera.
     private func loadDemoImage() {
         let defaults = UserDefaults.standard
+        if defaults.bool(forKey: "demoCamera") { showCamera = true }
         guard image == nil, let path = defaults.string(forKey: "demoImage"),
-              let ui = UIImage(contentsOfFile: path) else { return }
-        setImage(ui)
+              let cg = ImageIntake.decode(fileURL: URL(fileURLWithPath: path)) else { return }
+        if defaults.bool(forKey: "demoCrop") {
+            startCropping(cg, from: .library)
+            return
+        }
+        setImage(cg, from: .library)
         if defaults.bool(forKey: "demoRead") { Task { await read() } }
     }
 
@@ -148,24 +188,67 @@ struct ContentView: View {
     private func reset() {
         image = nil
         result = nil
+        preCropImage = nil
+        cropping = false
         historyItemID = nil
         cameFromHistory = false
     }
 
-    private func setImage(_ ui: UIImage) {
+    /// Back from a page (or "next image"): to the camera if the page was taken with it, else home.
+    private func leavePage() {
+        let toCamera = returnToCamera && !cameFromHistory
+        reset()
+        showCamera = toCamera
+    }
+
+    private func setImage(_ cg: CGImage, from source: PageSource) {
         withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) {
-            image = ui.normalizedCGImage()
+            reset()
+            returnToCamera = false
+            image = ImageIntake.limit(cg)
+        }
+    }
+
+    /// A new page opens in the crop screen. The previous page's images go first, so two
+    /// full-size pages are never held at once.
+    private func startCropping(_ cg: CGImage, from source: PageSource) {
+        if source == .camera && saveToLibrary { saveImageToLibrary(cg) }
+        withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) {
+            reset()
+            // Also a photo chosen from the camera screen's gallery button goes back to the camera.
+            returnToCamera = source == .camera || showCamera
+            preCropImage = ImageIntake.limit(cg)
+            cropSessionID = UUID()
+            cropping = true
+        }
+    }
+
+    private func recrop() {
+        guard preCropImage != nil else { return }
+        withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) {
             result = nil
-            historyItemID = nil
-            cameFromHistory = false
+            image = nil
+            cropSessionID = UUID()
+            cropping = true
+        }
+    }
+
+    private func saveImageToLibrary(_ cg: CGImage) {
+        let ui = UIImage(cgImage: cg)
+        PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
+            guard status == .authorized else { return }
+            PHPhotoLibrary.shared().performChanges { PHAssetChangeRequest.creationRequestForAsset(from: ui) }
         }
     }
 
     /// Shows a saved page as it was read: the stored image (already straightened) and its lines.
     private func loadHistoryItem(_ item: HistoryItem) {
+        // Full size as stored: the boxes are in its pixels (older records may exceed 4096 px).
         guard let ui = UIImage(contentsOfFile: HistoryManager.shared.imageURL(for: item).path),
-              let cg = ui.normalizedCGImage() else { return }
+              let cg = ui.normalizedCGImage else { return }
         withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) {
+            reset()
+            showCamera = false
             image = cg
             result = PageResult(engine: item.engineKind ?? .vision, image: cg,
                                 lines: item.detections, seconds: item.seconds ?? 0)
@@ -177,8 +260,8 @@ struct ContentView: View {
     /// Opens a bundled sample page. If its engine is downloaded, reads it straight away;
     /// otherwise leaves the page open and shows the models screen.
     private func loadSample(_ page: SamplePage) {
-        guard let ui = page.loadImage() else { return }
-        setImage(ui)
+        guard let cg = page.loadImage()?.normalizedCGImage else { return }
+        setImage(cg, from: .sample)
         if store.status[page.engine] == .installed {
             engineRaw = page.engine.rawValue
             Task { await read() }
@@ -431,7 +514,6 @@ struct HomeView: View {
             .contentShape(RoundedRectangle(cornerRadius: 18))
         }
         .buttonStyle(PaperCardButtonStyle())
-        .disabled(!UIImagePickerController.isSourceTypeAvailable(.camera))
         .accessibilityIdentifier("home_camera_button")
         .padding(.horizontal, 20)
     }
@@ -596,7 +678,9 @@ struct PageView: View {
     @EnvironmentObject var recognizer: Recognizer
     let image: CGImage
     @Binding var engineRaw: String
+    var canRecrop = false
     let onBack: () -> Void
+    var onRecrop: () -> Void = {}
     let onModels: () -> Void
     let onRead: () -> Void
 
@@ -611,6 +695,19 @@ struct PageView: View {
                 .buttonStyle(.loGlass)
                 .disabled(recognizer.isRunning)
                 Spacer()
+                if canRecrop {
+                    Button(action: onRecrop) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "crop").font(.body.weight(.semibold))
+                            Text(String(localized: "retrim", defaultValue: "再切り取り")).font(.body.weight(.bold)).lineLimit(1)
+                        }
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.loGlass)
+                    .disabled(recognizer.isRunning)
+                    .accessibilityIdentifier("retrim_button")
+                }
             }
             .padding(.horizontal, 16)
             .padding(.top, 8)
@@ -715,51 +812,5 @@ private struct ScanSweep: View {
             withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: false)) { down = true }
         }
         .accessibilityHidden(true)
-    }
-}
-
-// MARK: - Helpers
-
-extension UIImage {
-    /// The pixels upright (camera photos carry their rotation as a flag), as a CGImage.
-    func normalizedCGImage() -> CGImage? {
-        if imageOrientation == .up, let cg = cgImage { return cg }
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        let drawn = UIGraphicsImageRenderer(size: size, format: format).image { _ in draw(in: CGRect(origin: .zero, size: size)) }
-        return drawn.cgImage
-    }
-}
-
-/// The system camera.
-struct CameraPicker: UIViewControllerRepresentable {
-    let onPick: (UIImage?) -> Void
-    @Environment(\.dismiss) private var dismiss
-
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let picker = UIImagePickerController()
-        picker.sourceType = .camera
-        picker.delegate = context.coordinator
-        return picker
-    }
-
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
-
-    func makeCoordinator() -> Coordinator { Coordinator(self) }
-
-    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let parent: CameraPicker
-        init(_ parent: CameraPicker) { self.parent = parent }
-
-        func imagePickerController(_ picker: UIImagePickerController,
-                                   didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
-            parent.onPick(info[.originalImage] as? UIImage)
-            parent.dismiss()
-        }
-
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            parent.onPick(nil)
-            parent.dismiss()
-        }
     }
 }

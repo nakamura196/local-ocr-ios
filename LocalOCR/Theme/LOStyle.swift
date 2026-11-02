@@ -29,6 +29,10 @@ enum LOColor {
     static let rule = Color(light: (0.796, 0.722, 0.612), dark: (0.302, 0.275, 0.239))
     static let ok = Color(light: (0.180, 0.490, 0.255), dark: (0.400, 0.741, 0.471))
     static let danger = Color(light: (0.710, 0.271, 0.184), dark: (0.878, 0.408, 0.298))
+    /// 藍 that reads on a live camera image (the frame corners). Same in light and dark.
+    static let aiBright = Color(red: 0.525, green: 0.671, blue: 0.878)
+    /// Dark board behind the photo in the crop screen, so the white crop frame reads clearly.
+    static let docBackground = Color(red: 0.114, green: 0.106, blue: 0.098)
 
     /// Line boxes take these in turn so neighbouring lines never share a colour:
     /// 藍, 朱, 萌黄 (deep), 江戸紫. All four read on cream paper and on dark photos.
@@ -100,6 +104,8 @@ enum LOGlassKind {
     case regular
     /// The one main action on a screen (Read, Copy). 藍.
     case prominent
+    /// Control on top of the camera image.
+    case onCamera
 }
 
 private struct LOGlassModifier<S: Shape>: ViewModifier {
@@ -131,6 +137,9 @@ private struct LOGlassModifier<S: Shape>: ViewModifier {
                 .shadow(color: .black.opacity(0.12), radius: 1, y: 1)
         case .prominent:
             shape.fill(LOColor.aiFill)
+        case .onCamera:
+            shape.fill(Color(red: 0.17, green: 0.165, blue: 0.157))
+                .overlay(shape.stroke(Color(red: 0.24, green: 0.23, blue: 0.215), lineWidth: 1))
         }
     }
 }
@@ -160,10 +169,12 @@ struct LOGlassButtonStyle<S: Shape>: ButtonStyle {
 extension ButtonStyle where Self == LOGlassButtonStyle<Capsule> {
     static var loGlass: LOGlassButtonStyle<Capsule> { .init(kind: .regular, shape: Capsule()) }
     static var loProminent: LOGlassButtonStyle<Capsule> { .init(kind: .prominent, shape: Capsule()) }
+    static var loCamera: LOGlassButtonStyle<Capsule> { .init(kind: .onCamera, shape: Capsule()) }
 }
 
 extension ButtonStyle where Self == LOGlassButtonStyle<Circle> {
     static var loGlassCircle: LOGlassButtonStyle<Circle> { .init(kind: .regular, shape: Circle()) }
+    static var loCameraCircle: LOGlassButtonStyle<Circle> { .init(kind: .onCamera, shape: Circle()) }
 }
 
 /// Paper card button. Shrinks to 0.96 when pressed.

@@ -170,3 +170,36 @@
 "box_hint_add" = "Drag on the image to draw a new box";
 "box_hint_split" = "Tap where to cut the box";
 "box_hint_merge" = "Select one box, then tap the box to join";
+
+/* Camera, crop and perspective correction (from KotenOCR) */
+"camera_capture_failed" = "Capture failed. Please try again.";
+"camera_frame_hint" = "Fit the whole page inside the frame";
+"camera_no_camera" = "Camera not available\nUse the photo picker to select an image";
+"camera_permission_denied" = "Camera access is not allowed. Please allow camera access in Settings. You can also choose an image from your photo library.";
+"camera_unavailable_body" = "Turn on Camera for Local OCR in the Settings app. Your photos never leave this device.";
+"camera_unavailable_title" = "Camera unavailable";
+"capture_button" = "Take Photo";
+"coach_crop_corner" = "Drag a corner\nto choose the area";
+"coach_shutter" = "Tap here to take the photo";
+"crop_apply" = "Crop";
+"crop_auto_correct" = "Auto-correct";
+"crop_mode_quad" = "4 corners";
+"crop_mode_rect" = "Rectangle";
+"crop_reset_zoom" = "Reset zoom";
+"crop_rotate" = "Rotate";
+"crop_skip" = "Skip";
+"crop_tip" = "Move the blue dots at the corners around the part you want to read";
+"crop_title" = "Choose Area";
+"crop_undo_correct" = "Undo";
+"flash_off" = "Flash Off";
+"flash_on" = "Flash On";
+"home_button" = "Home";
+"home_choose_photo" = "Choose from Photos";
+"ocr_error_retake" = "Retake";
+"retrim" = "Re-crop";
+"scan_document" = "Scan document";
+"settings_auto_deskew" = "Auto-correct tilt (NDL engines)";
+"settings_show_tilt_guide" = "Show tilt guide";
+"settings_show_tips_again" = "Show Tips Again";
+"tilt_hint" = "Hold the phone parallel to the page";
+"tilt_try_scanner" = "Try Scan document";

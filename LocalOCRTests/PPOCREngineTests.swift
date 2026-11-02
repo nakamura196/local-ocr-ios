@@ -59,7 +59,7 @@ final class PPOCREngineTests: XCTestCase {
         for p in paths + [imgPath, refPath] where !FileManager.default.fileExists(atPath: p) {
             throw XCTSkip("missing \(p)")
         }
-        guard let ui = UIImage(contentsOfFile: imgPath), let cg = ui.normalizedCGImage() else { throw XCTSkip("bad image") }
+        guard let ui = UIImage(contentsOfFile: imgPath), let cg = ui.normalizedCGImage else { throw XCTSkip("bad image") }
         let env = try ORTEnv(loggingLevel: .warning)
         let engine = try PPOCREngine(env: env, detModelPath: paths[0], detConfigPath: paths[1],
                                      recModelPath: paths[2], recConfigPath: paths[3])
