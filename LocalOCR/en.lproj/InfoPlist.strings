@@ -1,0 +1,3 @@
+"CFBundleDisplayName" = "Local OCR";
+"NSCameraUsageDescription" = "The camera is used to photograph material for text recognition. Images never leave this device.";
+"NSPhotoLibraryAddUsageDescription" = "Used to save images to Photos.";

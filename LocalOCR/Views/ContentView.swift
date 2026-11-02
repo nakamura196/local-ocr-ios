@@ -2,11 +2,12 @@ import SwiftUI
 import PhotosUI
 import UniformTypeIdentifiers
 
-/// Main screen: pick an engine, bring in an image, read it.
+/// Holds the three screens (home → page → result) and the pickers they share.
 struct ContentView: View {
     @EnvironmentObject var store: ModelStore
     @EnvironmentObject var recognizer: Recognizer
     @AppStorage("engine") private var engineRaw = EngineKind.vision.rawValue
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var photoItem: PhotosPickerItem?
     @State private var showFiles = false
@@ -19,156 +20,542 @@ struct ContentView: View {
     private var engine: EngineKind { EngineKind(rawValue: engineRaw) ?? .vision }
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                if let result {
-                    ResultView(result: result)
-                } else if let image {
-                    Image(decorative: image, scale: 1)
-                        .resizable().scaledToFit()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .padding()
-                } else {
-                    emptyState
-                }
-                Divider()
-                bottomBar
+        ZStack {
+            if let result {
+                ResultView(result: result,
+                           onBack: { withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) { self.result = nil } },
+                           onNew: { withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) { reset() } })
+                    .transition(LOMotion.rise(reduceMotion: reduceMotion))
+            } else if let image {
+                PageView(image: image, engineRaw: $engineRaw,
+                         onBack: { withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) { reset() } },
+                         onModels: { showModels = true },
+                         onRead: { Task { await read() } })
+                    .transition(LOMotion.rise(reduceMotion: reduceMotion))
+            } else {
+                HomeView(engineRaw: $engineRaw, photoItem: $photoItem,
+                         onCamera: { showCamera = true },
+                         onFiles: { showFiles = true },
+                         onModels: { showModels = true })
+                    .transition(.opacity)
             }
-            .navigationTitle("Local OCR")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showModels = true } label: {
-                        Label(String(localized: "models_title", defaultValue: "読み取りモデル"), systemImage: "square.and.arrow.down.on.square")
-                    }
-                }
-                if let result {
-                    ToolbarItem(placement: .topBarLeading) {
-                        ShareLink(item: result.text) { Image(systemName: "square.and.arrow.up") }
-                    }
-                }
-            }
-            .sheet(isPresented: $showModels) {
-                NavigationStack {
-                    ModelsView()
-                        .toolbar {
-                            ToolbarItem(placement: .confirmationAction) {
-                                Button(String(localized: "done", defaultValue: "完了")) { showModels = false }
-                            }
+        }
+        .washiBackground()
+        .sheet(isPresented: $showModels) {
+            NavigationStack {
+                ModelsView()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(String(localized: "done", defaultValue: "完了")) { showModels = false }
                         }
-                }
-            }
-            .fullScreenCover(isPresented: $showCamera) {
-                CameraPicker { picked in
-                    if let picked { setImage(picked) }
-                }
-                .ignoresSafeArea()
-            }
-            .fileImporter(isPresented: $showFiles, allowedContentTypes: [.image]) { res in
-                guard case .success(let url) = res else { return }
-                let scoped = url.startAccessingSecurityScopedResource()
-                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                if let data = try? Data(contentsOf: url), let ui = UIImage(data: data) { setImage(ui) }
-            }
-            .onChange(of: photoItem) { _, item in
-                guard let item else { return }
-                Task {
-                    if let data = try? await item.loadTransferable(type: Data.self), let ui = UIImage(data: data) {
-                        setImage(ui)
                     }
-                    photoItem = nil
-                }
-            }
-            .alert(String(localized: "error_title", defaultValue: "読み取れませんでした"),
-                   isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
-                Button("OK") { errorMessage = nil }
-            } message: {
-                Text(errorMessage ?? "")
-            }
-            .onAppear {
-                if store.status[engine] != .installed { engineRaw = EngineKind.vision.rawValue }
             }
         }
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraPicker { picked in
+                if let picked { setImage(picked) }
+            }
+            .ignoresSafeArea()
+        }
+        .fileImporter(isPresented: $showFiles, allowedContentTypes: [.image]) { res in
+            guard case .success(let url) = res else { return }
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            if let data = try? Data(contentsOf: url), let ui = UIImage(data: data) { setImage(ui) }
+        }
+        .onChange(of: photoItem) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self), let ui = UIImage(data: data) {
+                    setImage(ui)
+                }
+                photoItem = nil
+            }
+        }
+        .alert(String(localized: "error_title", defaultValue: "読み取れませんでした"),
+               isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
+            Button(String(localized: "ok", defaultValue: "OK")) { errorMessage = nil }
+        } message: {
+            Text(errorMessage ?? "")
+        }
+        .onAppear {
+            fallBackToInstalled()
+            #if DEBUG
+            loadDemoImage()
+            loadDemoSheet()
+            #endif
+        }
+        .onChange(of: store.status) { _, _ in fallBackToInstalled() }
     }
 
-    private var emptyState: some View {
-        VStack(spacing: 16) {
-            Spacer()
-            Image(systemName: "text.viewfinder").font(.system(size: 56)).foregroundStyle(.secondary)
-            Text(String(localized: "empty_title", defaultValue: "画像を選ぶと、この端末の中で文字を読み取ります"))
-                .font(.headline).multilineTextAlignment(.center)
-            if store.installedEngines.count <= 1 {
-                Button { showModels = true } label: {
-                    Label(String(localized: "empty_get_models", defaultValue: "くずし字・活字のモデルを入れる"),
-                          systemImage: "arrow.down.circle")
-                }
-                .buttonStyle(.bordered)
-            }
-            Spacer()
-        }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    #if DEBUG
+    /// Screenshots: `-demoImage <path>` opens that file, `-demoRead YES` also reads it.
+    private func loadDemoImage() {
+        let defaults = UserDefaults.standard
+        guard image == nil, let path = defaults.string(forKey: "demoImage"),
+              let ui = UIImage(contentsOfFile: path) else { return }
+        setImage(ui)
+        if defaults.bool(forKey: "demoRead") { Task { await read() } }
     }
 
-    private var bottomBar: some View {
-        VStack(spacing: 10) {
-            Picker(String(localized: "engine_picker", defaultValue: "読み取り方式"), selection: $engineRaw) {
-                ForEach(store.installedEngines) { kind in
-                    Text(kind.title).tag(kind.rawValue)
-                }
-            }
-            .pickerStyle(.menu)
+    private func loadDemoSheet() {
+        if UserDefaults.standard.bool(forKey: "demoModels") { showModels = true }
+    }
+    #endif
 
-            HStack(spacing: 12) {
-                PhotosPicker(selection: $photoItem, matching: .images) {
-                    Label(String(localized: "input_photos", defaultValue: "写真"), systemImage: "photo")
-                        .frame(maxWidth: .infinity)
-                }
-                Button { showFiles = true } label: {
-                    Label(String(localized: "input_files", defaultValue: "ファイル"), systemImage: "folder")
-                        .frame(maxWidth: .infinity)
-                }
-                if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                    Button { showCamera = true } label: {
-                        Label(String(localized: "input_camera", defaultValue: "撮影"), systemImage: "camera")
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-            }
-            .buttonStyle(.bordered)
+    private func fallBackToInstalled() {
+        if store.status[engine] != .installed { engineRaw = EngineKind.vision.rawValue }
+    }
 
-            Button {
-                Task { await read() }
-            } label: {
-                HStack {
-                    if recognizer.isRunning { ProgressView().tint(.white) }
-                    Text(recognizer.isRunning
-                         ? String(localized: "reading", defaultValue: "読み取り中…")
-                         : String(localized: "read", defaultValue: "読み取る"))
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .disabled(image == nil || recognizer.isRunning)
-        }
-        .padding()
+    private func reset() {
+        image = nil
+        result = nil
     }
 
     private func setImage(_ ui: UIImage) {
-        image = ui.normalizedCGImage()
-        result = nil
+        withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) {
+            image = ui.normalizedCGImage()
+            result = nil
+        }
     }
 
     private func read() async {
         guard let image else { return }
+        LOHaptics.impact(.medium)
         do {
-            result = try await recognizer.run(engine, on: image)
+            let r = try await recognizer.run(engine, on: image)
+            LOHaptics.notify(.success)
+            withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) { result = r }
         } catch {
+            LOHaptics.notify(.error)
             errorMessage = error.localizedDescription
         }
     }
 }
+
+// MARK: - Home
+
+struct HomeView: View {
+    @EnvironmentObject var store: ModelStore
+    @Binding var engineRaw: String
+    @Binding var photoItem: PhotosPickerItem?
+    let onCamera: () -> Void
+    let onFiles: () -> Void
+    let onModels: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @State private var appeared = 0
+
+    var body: some View {
+        GeometryReader { geo in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    header
+                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
+                        .opacity(appeared >= 1 ? 1 : 0)
+
+                    VStack(alignment: .leading, spacing: 0) {
+                        Spacer(minLength: 28)
+                        intro
+                        Spacer(minLength: 28)
+                        engines
+                            .padding(.bottom, 22)
+                        mainCard
+                        secondaryRow
+                            .padding(.top, 12)
+                        privacyNote
+                            .padding(.top, 16)
+                    }
+                    .opacity(appeared >= 2 ? 1 : 0)
+                    .offset(y: appeared >= 2 || reduceMotion ? 0 : 10)
+                }
+                .frame(maxWidth: 520)
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, 16)
+                .frame(minHeight: geo.size.height)
+            }
+        }
+        .onAppear(perform: playEntrance)
+    }
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 12) {
+                LOSeal(size: 40)
+                Text("Local OCR")
+                    .font(.mincho(28, relativeTo: .title, bold: true))
+                    .foregroundColor(LOColor.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 8)
+            Button(action: onModels) {
+                IconLabel(systemName: "square.and.arrow.down.on.square")
+            }
+            .buttonStyle(.loGlassCircle)
+            .accessibilityLabel(Text(String(localized: "models_title", defaultValue: "読み取りモデル")))
+            .accessibilityIdentifier("home_models_button")
+        }
+    }
+
+    private var intro: some View {
+        VStack(spacing: 14) {
+            Text(String(localized: "brand_tagline", defaultValue: "画像の文字を、この端末の中で読む"))
+                .font(.mincho(20, relativeTo: .title3, bold: true))
+                .tracking(1)
+                .foregroundColor(LOColor.ink)
+                .multilineTextAlignment(.center)
+            LOColor.ai.opacity(0.6)
+                .frame(width: 32, height: 1.5)
+                .accessibilityHidden(true)
+            Text(String(localized: "brand_sub",
+                        defaultValue: "くずし字から現代の活字、外国語まで。\n資料に合う方式を選べます。"))
+                .font(.mincho(15, relativeTo: .subheadline))
+                .foregroundColor(LOColor.inkSecondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 32)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var engines: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(String(localized: "engine_picker", defaultValue: "読み取りの方式"))
+                    .font(.mincho(16, relativeTo: .headline, bold: true))
+                    .foregroundColor(LOColor.ink)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer()
+                Button(action: onModels) {
+                    Text(String(localized: "home_manage_models", defaultValue: "モデルを管理"))
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(LOColor.ai)
+                }
+            }
+            .padding(.horizontal, 24)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(EngineKind.allCases) { kind in
+                        EngineCard(kind: kind,
+                                   status: store.status[kind] ?? .notInstalled,
+                                   selected: engineRaw == kind.rawValue) {
+                            if store.status[kind] == .installed {
+                                LOHaptics.impact(.light)
+                                withAnimation(LOMotion.spring(0.3, reduceMotion: reduceMotion)) { engineRaw = kind.rawValue }
+                            } else {
+                                onModels()
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 2)
+            }
+        }
+    }
+
+    private var mainCard: some View {
+        Button(action: {
+            LOHaptics.impact(.medium)
+            onCamera()
+        }) {
+            HStack(spacing: 20) {
+                Image(systemName: "camera")
+                    .font(.system(size: 40, weight: .light))
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(String(localized: "home_take_photo", defaultValue: "撮影して読む"))
+                        .font(.mincho(28, relativeTo: .title, bold: true))
+                    Text(String(localized: "home_take_photo_sub", defaultValue: "資料をカメラで写す"))
+                        .font(.subheadline)
+                        .opacity(0.75)
+                }
+                Spacer(minLength: 0)
+            }
+            .foregroundColor(LOColor.washi)
+            .padding(26)
+            .frame(maxWidth: .infinity, minHeight: 128)
+            .background(RoundedRectangle(cornerRadius: 18).fill(LOColor.ink))
+            .shadow(color: LOColor.ink.opacity(0.25), radius: 12, y: 10)
+            .contentShape(RoundedRectangle(cornerRadius: 18))
+        }
+        .buttonStyle(PaperCardButtonStyle())
+        .disabled(!UIImagePickerController.isSourceTypeAvailable(.camera))
+        .accessibilityIdentifier("home_camera_button")
+        .padding(.horizontal, 20)
+    }
+
+    private var secondaryRow: some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 12))
+            : AnyLayout(HStackLayout(spacing: 12))
+        return layout {
+            PhotosPicker(selection: $photoItem, matching: .images) {
+                secondaryLabel(icon: "photo", title: String(localized: "input_photos", defaultValue: "写真から選ぶ"))
+            }
+            .buttonStyle(PaperCardButtonStyle())
+            .accessibilityIdentifier("home_photo_button")
+
+            Button(action: onFiles) {
+                secondaryLabel(icon: "folder", title: String(localized: "input_files", defaultValue: "ファイルから選ぶ"))
+            }
+            .buttonStyle(PaperCardButtonStyle())
+            .accessibilityIdentifier("home_files_button")
+        }
+        .padding(.horizontal, 20)
+    }
+
+    private func secondaryLabel(icon: String, title: String) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 24, weight: .light))
+                .accessibilityHidden(true)
+            Text(title)
+                .font(.mincho(17, relativeTo: .headline, bold: true))
+                .multilineTextAlignment(.center)
+        }
+        .foregroundColor(LOColor.ink)
+        .padding(.vertical, 16)
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity, minHeight: 92)
+        .paperCard()
+    }
+
+    private var privacyNote: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "lock.shield")
+                .accessibilityHidden(true)
+            Text(String(localized: "home_privacy", defaultValue: "画像も結果も、端末の外に送りません"))
+        }
+        .font(.footnote)
+        .foregroundColor(LOColor.inkSecondary)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 20)
+    }
+
+    private func playEntrance() {
+        guard appeared == 0 else { return }
+        if reduceMotion {
+            withAnimation(.easeOut(duration: 0.25)) { appeared = 2 }
+            return
+        }
+        withAnimation(.easeInOut(duration: 0.45)) { appeared = 1 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            withAnimation(.easeOut(duration: 0.55)) { appeared = 2 }
+        }
+    }
+}
+
+/// One engine on the home screen: selectable when installed, otherwise shows its download size.
+private struct EngineCard: View {
+    let kind: EngineKind
+    let status: ModelStore.Status
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: kind.symbol)
+                        .font(.system(size: 20, weight: .regular))
+                        .foregroundColor(selected ? LOColor.ai : LOColor.ink)
+                    Spacer(minLength: 4)
+                    badge
+                }
+                Text(kind.title)
+                    .font(.mincho(15, relativeTo: .headline, bold: true))
+                    .foregroundColor(LOColor.ink)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                Text(kind.tag)
+                    .font(.caption)
+                    .foregroundColor(LOColor.inkSecondary)
+                    .lineLimit(2)
+            }
+            .padding(12)
+            .frame(width: 132, height: 128, alignment: .topLeading)
+            .paperCard(cornerRadius: 14,
+                       stroke: selected ? LOColor.ai : LOColor.rule,
+                       lineWidth: selected ? 2.5 : 1)
+            .opacity(isInstalled ? 1 : 0.72)
+        }
+        .buttonStyle(PaperCardButtonStyle())
+        .accessibilityLabel(Text(String(localized: "engine_a11y_label", defaultValue: "\(kind.title)、\(kind.tag)")))
+        .accessibilityValue(Text(accessibilityState))
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier("engine_card_\(kind.rawValue)")
+    }
+
+    private var isInstalled: Bool { status == .installed }
+
+    @ViewBuilder private var badge: some View {
+        switch status {
+        case .installed:
+            if selected {
+                Image(systemName: "checkmark.circle.fill").foregroundColor(LOColor.ai)
+            }
+        case .downloading(let p):
+            ProgressView(value: p).progressViewStyle(.circular).controlSize(.small)
+        case .notInstalled, .failed:
+            HStack(spacing: 3) {
+                Image(systemName: "arrow.down.circle")
+                Text(ByteCountFormatter.string(fromByteCount: kind.downloadSize, countStyle: .file))
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundColor(LOColor.ai)
+        }
+    }
+
+    private var accessibilityState: String {
+        switch status {
+        case .installed: return selected ? String(localized: "a11y_selected", defaultValue: "選択中") : ""
+        case .downloading: return String(localized: "a11y_downloading", defaultValue: "ダウンロード中")
+        case .notInstalled, .failed: return String(localized: "a11y_not_installed", defaultValue: "未ダウンロード。押すとモデルの画面を開きます")
+        }
+    }
+}
+
+// MARK: - Page (before reading)
+
+struct PageView: View {
+    @EnvironmentObject var store: ModelStore
+    @EnvironmentObject var recognizer: Recognizer
+    let image: CGImage
+    @Binding var engineRaw: String
+    let onBack: () -> Void
+    let onModels: () -> Void
+    let onRead: () -> Void
+
+    private var engine: EngineKind { EngineKind(rawValue: engineRaw) ?? .vision }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button(action: onBack) {
+                    BackLabel(title: String(localized: "back", defaultValue: "戻る"))
+                }
+                .buttonStyle(.loGlass)
+                .disabled(recognizer.isRunning)
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+
+            Image(decorative: image, scale: 1)
+                .resizable()
+                .scaledToFit()
+                .overlay { if recognizer.isRunning { ScanSweep() } }
+                .paperMount()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+
+            VStack(spacing: 12) {
+                if recognizer.isRunning {
+                    HStack(spacing: 8) {
+                        ProgressView().tint(LOColor.ai)
+                        Text(String(localized: "reading_on_device", defaultValue: "この端末の中で読み取っています…"))
+                            .font(.mincho(15, relativeTo: .subheadline))
+                            .foregroundColor(LOColor.inkSecondary)
+                    }
+                    .transition(.opacity)
+                } else {
+                    engineMenu
+                        .transition(.opacity)
+                }
+
+                Button(action: onRead) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "text.viewfinder")
+                        Text(String(localized: "read", defaultValue: "読み取る"))
+                            .font(.mincho(19, relativeTo: .headline, bold: true))
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 54)
+                }
+                .buttonStyle(.loProminent)
+                .disabled(recognizer.isRunning)
+                .accessibilityIdentifier("read_button")
+            }
+            .animation(.easeInOut(duration: 0.2), value: recognizer.isRunning)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 12)
+        }
+    }
+
+    private var engineMenu: some View {
+        Menu {
+            Picker(String(localized: "engine_picker", defaultValue: "読み取りの方式"), selection: $engineRaw) {
+                ForEach(store.installedEngines) { kind in
+                    Label(String(localized: "engine_picker_item", defaultValue: "\(kind.title)　\(kind.tag)"), systemImage: kind.symbol).tag(kind.rawValue)
+                }
+            }
+            Divider()
+            Button(action: onModels) {
+                Label(String(localized: "home_manage_models", defaultValue: "モデルを管理"), systemImage: "square.and.arrow.down.on.square")
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: engine.symbol)
+                    .foregroundColor(LOColor.ai)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(engine.title)
+                        .font(.mincho(16, relativeTo: .headline, bold: true))
+                    Text(engine.tag)
+                        .font(.caption)
+                        .foregroundColor(LOColor.inkSecondary)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundColor(LOColor.inkSecondary)
+            }
+            .foregroundColor(LOColor.ink)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity)
+            .paperCard(cornerRadius: 14, lineWidth: 1)
+        }
+        .accessibilityIdentifier("engine_menu")
+    }
+}
+
+/// A band of 藍 light that sweeps down the page while it is being read.
+private struct ScanSweep: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var down = false
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .top) {
+                LOColor.washi.opacity(0.18)
+                LinearGradient(colors: [LOColor.ai.opacity(0), LOColor.ai.opacity(0.35), LOColor.ai.opacity(0)],
+                               startPoint: .top, endPoint: .bottom)
+                    .frame(height: max(40, geo.size.height * 0.16))
+                    .offset(y: down ? geo.size.height : -geo.size.height * 0.16)
+            }
+            .clipped()
+        }
+        .allowsHitTesting(false)
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: false)) { down = true }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Helpers
 
 extension UIImage {
     /// The pixels upright (camera photos carry their rotation as a flag), as a CGImage.

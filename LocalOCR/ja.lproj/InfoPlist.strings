@@ -1,0 +1,3 @@
+"CFBundleDisplayName" = "Local OCR";
+"NSCameraUsageDescription" = "文字を読み取る資料を撮影するために使います。画像は端末の外に送りません。";
+"NSPhotoLibraryAddUsageDescription" = "画像を写真に保存するために使います。";

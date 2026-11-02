@@ -1,0 +1,71 @@
+/* Local OCR — English. Keys match String(localized:defaultValue:) in the source (defaults are Japanese). */
+
+/* Engines */
+"engine_vision_title" = "Apple Vision";
+"engine_koten_title" = "NDL Classical OCR Lite";
+"engine_ndl_title" = "NDLOCR Lite";
+"engine_ppocr_title" = "PP-OCRv6";
+"engine_vision_summary" = "The text recognition built into iPhone. Modern print and handwriting in Japanese, English and Chinese. No download needed, and fast.";
+"engine_koten_summary" = "Pre-modern Japanese woodblock prints, manuscripts and kuzushiji. A model from the National Diet Library, Japan.";
+"engine_ndl_summary" = "Japanese print from the Meiji era onward. A model from the National Diet Library, Japan.";
+"engine_ppocr_summary" = "Reads printed text line by line. Chinese, English, Japanese and Latin-script languages.";
+"engine_vision_tag" = "Modern print & handwriting";
+"engine_koten_tag" = "Kuzushiji texts";
+"engine_ndl_tag" = "Meiji-era & later print";
+"engine_ppocr_tag" = "Multilingual print";
+"engine_a11y_label" = "%1$@, %2$@";
+"engine_picker_item" = "%1$@ — %2$@";
+"ocr_mode_koten" = "Classical";
+"ocr_mode_ndl" = "Modern";
+
+/* Download */
+"download_size_mismatch" = "The size of %1$@ does not match (%2$lld / %3$lld bytes). Please try again.";
+"download_http_error" = "Could not download from the server (%lld).";
+"ppocr_not_downloaded" = "The PP-OCRv6 model has not been downloaded yet.";
+
+/* Home */
+"brand_tagline" = "Read text in images, right on this device";
+"brand_sub" = "From kuzushiji to modern print and other languages.\nChoose the method that fits your material.";
+"engine_picker" = "Recognition method";
+"home_manage_models" = "Manage Models";
+"home_take_photo" = "Take a Photo";
+"home_take_photo_sub" = "Capture your material with the camera";
+"input_photos" = "Choose from Photos";
+"input_files" = "Choose from Files";
+"home_privacy" = "Images and results never leave this device";
+"a11y_selected" = "Selected";
+"a11y_downloading" = "Downloading";
+"a11y_not_installed" = "Not downloaded. Tap to open the models screen";
+
+/* Page */
+"back" = "Back";
+"reading_on_device" = "Reading on this device…";
+"read" = "Read";
+"error_title" = "Could Not Read";
+"ok" = "OK";
+"done" = "Done";
+
+/* Models */
+"models_title" = "Recognition Models";
+"models_lead" = "Add the models that fit your material. Each is downloaded once; after that, everything is read on this device.";
+"models_used" = "Storage used";
+"models_footer" = "Images and results are never sent anywhere. Wi-Fi is recommended for downloading.";
+"models_delete_title" = "Delete this model?";
+"models_delete" = "Delete";
+"models_delete_message" = "You will need to download it again to use %@.";
+"models_builtin" = "Built-in";
+"models_ready" = "Ready";
+"models_download" = "Download";
+"models_cancel" = "Cancel";
+"models_retry" = "Retry";
+
+/* Result */
+"back_to_page_hint" = "You can read it again with another method";
+"share" = "Share";
+"result_lines" = "%lld lines";
+"result_chars" = "%lld chars";
+"result_seconds" = "%.1f s";
+"result_empty" = "No text was found. Reading it again with another method may work.";
+"new_image" = "Next Image";
+"copied" = "Copied";
+"copy_all" = "Copy All Text";

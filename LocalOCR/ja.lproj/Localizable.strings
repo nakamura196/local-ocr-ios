@@ -1,0 +1,71 @@
+/* Local OCR — 日本語（開発言語）。キーと既定値はソースの String(localized:defaultValue:) と同じ。 */
+
+/* Engines */
+"engine_vision_title" = "Apple Vision";
+"engine_koten_title" = "NDL古典籍OCR Lite";
+"engine_ndl_title" = "NDLOCR Lite";
+"engine_ppocr_title" = "PP-OCRv6";
+"engine_vision_summary" = "iPhone に入っている文字認識。現代の活字・手書き。日本語・英語・中国語。ダウンロード不要で速い。";
+"engine_koten_summary" = "江戸期以前の版本・写本、くずし字。国立国会図書館のモデル。";
+"engine_ndl_summary" = "明治以降の日本語の活字。国立国会図書館のモデル。";
+"engine_ppocr_summary" = "活字を行ごとに読む。中国語・英語・日本語、ラテン文字の言語。";
+"engine_vision_tag" = "現代の活字・手書き";
+"engine_koten_tag" = "くずし字・版本";
+"engine_ndl_tag" = "明治以降の活字";
+"engine_ppocr_tag" = "多言語の活字";
+"engine_a11y_label" = "%1$@、%2$@";
+"engine_picker_item" = "%1$@　%2$@";
+"ocr_mode_koten" = "古典籍";
+"ocr_mode_ndl" = "近代";
+
+/* Download */
+"download_size_mismatch" = "%1$@ の大きさが合いません（%2$lld / %3$lld バイト）。もう一度お試しください。";
+"download_http_error" = "サーバーから取得できませんでした（%lld）。";
+"ppocr_not_downloaded" = "PP-OCRv6 のモデルがまだダウンロードされていません。";
+
+/* Home */
+"brand_tagline" = "画像の文字を、この端末の中で読む";
+"brand_sub" = "くずし字から現代の活字、外国語まで。\n資料に合う方式を選べます。";
+"engine_picker" = "読み取りの方式";
+"home_manage_models" = "モデルを管理";
+"home_take_photo" = "撮影して読む";
+"home_take_photo_sub" = "資料をカメラで写す";
+"input_photos" = "写真から選ぶ";
+"input_files" = "ファイルから選ぶ";
+"home_privacy" = "画像も結果も、端末の外に送りません";
+"a11y_selected" = "選択中";
+"a11y_downloading" = "ダウンロード中";
+"a11y_not_installed" = "未ダウンロード。押すとモデルの画面を開きます";
+
+/* Page */
+"back" = "戻る";
+"reading_on_device" = "この端末の中で読み取っています…";
+"read" = "読み取る";
+"error_title" = "読み取れませんでした";
+"ok" = "OK";
+"done" = "完了";
+
+/* Models */
+"models_title" = "読み取りモデル";
+"models_lead" = "資料に合うモデルを入れてください。最初に一度だけダウンロードし、そのあとはすべてこの端末の中で読み取ります。";
+"models_used" = "使っている容量";
+"models_footer" = "画像も結果も外に送りません。Wi-Fi でのダウンロードをお勧めします。";
+"models_delete_title" = "モデルを削除しますか？";
+"models_delete" = "削除";
+"models_delete_message" = "%@ を使うには、もう一度ダウンロードが必要になります。";
+"models_builtin" = "内蔵";
+"models_ready" = "使えます";
+"models_download" = "ダウンロード";
+"models_cancel" = "中止";
+"models_retry" = "やり直す";
+
+/* Result */
+"back_to_page_hint" = "別の方式で読み直せます";
+"share" = "共有";
+"result_lines" = "%lld 行";
+"result_chars" = "%lld 字";
+"result_seconds" = "%.1f 秒";
+"result_empty" = "文字が見つかりませんでした。別の方式で読み直すと読めることがあります。";
+"new_image" = "次の画像";
+"copied" = "コピーしました";
+"copy_all" = "全文をコピー";
