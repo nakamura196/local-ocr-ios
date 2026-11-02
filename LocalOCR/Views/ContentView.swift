@@ -15,6 +15,8 @@ struct ContentView: View {
     @State private var showModels = false
     @State private var showSamples = false
     @State private var showHistory = false
+    @State private var showSettings = false
+    @AppStorage(SettingsKey.saveToLibrary) private var saveToLibrary = false
     /// The history record of the page on screen, so later edits can go back to it.
     @State private var historyItemID: UUID?
     /// The result was opened from History: "back" returns to the list instead of the page.
@@ -53,6 +55,7 @@ struct ContentView: View {
                          onModels: { showModels = true },
                          onSample: { showSamples = true },
                          onHistory: { showHistory = true },
+                         onSettings: { showSettings = true },
                          onOpenHistoryItem: { item in loadHistoryItem(item) })
                     .transition(.opacity)
             }
@@ -75,9 +78,14 @@ struct ContentView: View {
             HistoryListView(onSelect: { item in loadHistoryItem(item) },
                             onStartCamera: { showCamera = true })
         }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+        }
         .fullScreenCover(isPresented: $showCamera) {
             CameraPicker { picked in
-                if let picked { setImage(picked) }
+                guard let picked else { return }
+                if saveToLibrary { UIImageWriteToSavedPhotosAlbum(picked, nil, nil, nil) }
+                setImage(picked)
             }
             .ignoresSafeArea()
         }
@@ -126,6 +134,7 @@ struct ContentView: View {
         if UserDefaults.standard.bool(forKey: "demoModels") { showModels = true }
         if UserDefaults.standard.bool(forKey: "demoSamples") { showSamples = true }
         if UserDefaults.standard.bool(forKey: "demoHistory") { showHistory = true }
+        if UserDefaults.standard.bool(forKey: "demoSettings") { showSettings = true }
     }
     #endif
 
@@ -207,6 +216,7 @@ struct HomeView: View {
     let onModels: () -> Void
     let onSample: () -> Void
     let onHistory: () -> Void
+    let onSettings: () -> Void
     let onOpenHistoryItem: (HistoryItem) -> Void
 
     @ObservedObject private var historyManager = HistoryManager.shared
@@ -281,6 +291,12 @@ struct HomeView: View {
             .buttonStyle(.loGlassCircle)
             .accessibilityLabel(Text(String(localized: "models_title", defaultValue: "読み取りモデル")))
             .accessibilityIdentifier("home_models_button")
+            Button(action: onSettings) {
+                IconLabel(systemName: "gearshape")
+            }
+            .buttonStyle(.loGlassCircle)
+            .accessibilityLabel(Text(String(localized: "settings_title", defaultValue: "設定")))
+            .accessibilityIdentifier("home_settings_button")
         }
     }
 

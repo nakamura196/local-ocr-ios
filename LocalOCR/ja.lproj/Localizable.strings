@@ -104,3 +104,35 @@
 "share_text" = "テキストを共有";
 "export_txt" = "TXTで書き出す";
 "export_pdf" = "PDFで書き出す";
+
+/* Settings (from KotenOCR) */
+"settings_title" = "設定";
+"settings_about" = "このアプリについて";
+"settings_version" = "バージョン";
+"settings_about_privacy" = "画像も読み取った文字も、端末の外に送りません。インターネットを使うのは、読み取りモデルをダウンロードするときだけです。";
+"settings_manage_models" = "モデルのダウンロードと削除";
+"settings_camera" = "カメラ";
+"settings_camera_permission" = "カメラの許可";
+"camera_status_authorized" = "許可済み";
+"camera_status_denied" = "許可されていません";
+"camera_status_not_set" = "未設定";
+"camera_open_settings" = "設定を開く";
+"settings_save_to_library" = "撮った写真を写真ライブラリに保存";
+"settings_theme" = "外観";
+"theme_system" = "システム";
+"theme_light" = "ライト";
+"theme_dark" = "ダーク";
+"settings_language" = "言語";
+"language_system" = "システム";
+"language_ja" = "日本語";
+"language_en" = "English";
+"language_restart_title" = "再起動が必要";
+"language_restart_message" = "言語の変更を適用するにはアプリを再起動してください。";
+"settings_feedback" = "フィードバック";
+"settings_send_feedback" = "フィードバックを送る";
+"settings_licenses" = "ライセンス";
+"settings_sample_pages_title" = "サンプルの頁";
+"settings_sample_pages_credit" = "『竹取物語』・『国立国会図書館スタッフ・マニュアル』（国立国会図書館デジタルコレクション）、『源氏物語』（東京大学総合図書館所蔵）を改変。菊池武光 施行状: 『古文書時代鑑』（国立国会図書館デジタルコレクション）。柴田太郎吉 明細書: 写真 柴田バネッサ、CC BY-SA 4.0（https://creativecommons.org/licenses/by-sa/4.0/）、Wikimedia Commons より";
+"settings_links" = "リンク";
+"settings_link_site" = "Local OCR のサイト";
+"settings_link_source" = "ソースコード（GitHub）";

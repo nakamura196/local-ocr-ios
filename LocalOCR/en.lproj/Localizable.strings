@@ -104,3 +104,35 @@
 "share_text" = "Share Text";
 "export_txt" = "Export TXT";
 "export_pdf" = "Export PDF";
+
+/* Settings (from KotenOCR) */
+"settings_title" = "Settings";
+"settings_about" = "About";
+"settings_version" = "Version";
+"settings_about_privacy" = "Neither your images nor the recognized text leave this device. The app uses the internet only to download recognition models.";
+"settings_manage_models" = "Download and Remove Models";
+"settings_camera" = "Camera";
+"settings_camera_permission" = "Camera Permission";
+"camera_status_authorized" = "Authorized";
+"camera_status_denied" = "Not Authorized";
+"camera_status_not_set" = "Not Set";
+"camera_open_settings" = "Open Settings";
+"settings_save_to_library" = "Save Photos You Take to Photo Library";
+"settings_theme" = "Appearance";
+"theme_system" = "System";
+"theme_light" = "Light";
+"theme_dark" = "Dark";
+"settings_language" = "Language";
+"language_system" = "System";
+"language_ja" = "Japanese";
+"language_en" = "English";
+"language_restart_title" = "Restart Required";
+"language_restart_message" = "Please restart the app to apply the language change.";
+"settings_feedback" = "Feedback";
+"settings_send_feedback" = "Send Feedback";
+"settings_licenses" = "Licenses";
+"settings_sample_pages_title" = "Sample pages";
+"settings_sample_pages_credit" = "Taketori Monogatari and the NDL Staff Manual: National Diet Library Digital Collections. The Tale of Genji: image courtesy of the University of Tokyo General Library / transformed. Order by Kikuchi Takemitsu: Komonjo Jidai Kagami (National Diet Library Digital Collections). Statement by Shibata Tarōkichi: photo by Shibata Vanessa, CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/), via Wikimedia Commons";
+"settings_links" = "Links";
+"settings_link_site" = "Local OCR Website";
+"settings_link_source" = "Source Code (GitHub)";
