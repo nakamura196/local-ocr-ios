@@ -236,4 +236,17 @@ final class BoxEditRegressionTests: XCTestCase {
         XCTAssertEqual(canvasRedraws, 30)
         a.cancel(); b.cancel()
     }
+
+    /// A high-priority pinch on the page held back the box drag until the finger lifted, so the box
+    /// lagged behind the finger on a real iPhone (KotenOCR 2.1.2). Not reproducible in the simulator,
+    /// so this checks the source.
+    func testPinchDoesNotHoldBackTheBoxDrag() throws {
+        let source = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("LocalOCR/Views/ResultView.swift")
+        let text = try String(contentsOf: source, encoding: .utf8)
+        XCTAssertFalse(text.contains(".highPriorityGesture("),
+                       "a high-priority gesture above the box editor delays the drag until the finger lifts")
+        XCTAssertTrue(text.contains(".simultaneousGesture(\n            MagnificationGesture()"))
+    }
 }

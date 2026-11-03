@@ -68,7 +68,6 @@
 "result_empty" = "No text was found. Reading it again with another method may work.";
 "new_image" = "Next Image";
 "copied" = "Copied";
-"copy_all" = "Copy All Text";
 
 /* Sample pages (titles and credits are the same as KotenOCR's) */
 "home_try_sample" = "Try a sample page";
@@ -147,7 +146,6 @@
 "tipjar_error_unverified" = "Purchase verification failed";
 
 /* Result screen and box editing (from KotenOCR) */
-"boxes_toggle" = "Boxes";
 "box_edit_enter" = "Edit Boxes";
 "confidence_label" = "Confidence";
 "confidence_hint_hidden" = "Raise it to hide the boxes the app is less sure about. %d lines hidden now";
@@ -255,3 +253,13 @@
 "translation_on_device_note" = "Translated by on-device AI. The text never leaves the device.";
 "translation_disclaimer" = "Translation and notes by on-device AI. They may contain errors.";
 "history_translated_badge" = "Translated";
+
+/* Result screen layout (as KotenOCR 2.1.2) */
+"copy" = "Copy";
+"boxes_show" = "Show Boxes";
+"confidence_menu" = "Confidence…";
+"confidence_menu_hidden" = "Confidence (%d lines hidden)";
+"result_more" = "More";
+"box_edit_prev" = "Previous line";
+"box_edit_next" = "Next line";
+"box_edit_line_total" = "%d lines. Tap a box or use ‹ › to choose";

@@ -18,6 +18,7 @@ struct ResultView: View {
 
     @EnvironmentObject private var recognizer: Recognizer
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     /// The lines as the reader has corrected them (text edits and box edits).
     @State private var detections: [Detection]
@@ -25,6 +26,7 @@ struct ResultView: View {
     @State private var selected: Int?
     @State private var showBoxes = true
     @State private var copied = false
+    @State private var showConfidence = false
     /// A TXT or PDF written to the temporary folder, waiting to be handed to the share sheet.
     @State private var exportFile: ExportFile?
     /// Display filter only: lines scoring below this are hidden. Nothing stored changes.
@@ -63,44 +65,53 @@ struct ResultView: View {
     var body: some View {
         GeometryReader { geo in
             VStack(spacing: 0) {
-                header
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
+                // The header is hidden while editing boxes (Cancel / Done take its place) so the page gets the room.
+                if !edit.isActive {
+                    header
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                }
 
+                // Outside box editing the page keeps to 40% so the text below gets the room.
                 stage
-                    .frame(height: geo.size.height * (edit.isActive ? 0.6 : 0.42))
+                    .frame(maxHeight: edit.isActive ? .infinity : geo.size.height * 0.4)
                     .padding(.horizontal, 14)
                     .padding(.top, 10)
 
                 if edit.isActive {
+                    // The chosen line's text, then the editing tools. The line list is gone (as on Android).
+                    selectedLineBar
                     BoxEditControls(model: edit, onCancel: cancelEditing, onDone: finishEditing, onReread: startReread)
                 } else {
-                    pageTools
-                        .padding(.horizontal, 16)
-                        .padding(.top, 10)
-                    summary
-                        .padding(.horizontal, 24)
-                        .padding(.top, 12)
-                    confidenceControl
-                        .padding(.horizontal, 24)
-                        .padding(.top, 14)
-                    tabPicker
-                        .padding(.horizontal, 20)
-                        .padding(.top, 10)
-                }
-
-                ZStack {
-                    if tab == .translation && !edit.isActive {
-                        translationPanel.transition(.opacity)
-                    } else {
-                        lines.transition(.opacity)
+                    // The one row that stays: which text, copy it, and everything else under "…".
+                    HStack(spacing: 8) {
+                        tabPicker
+                        copyButton
+                        moreMenu
                     }
+                    .padding(.horizontal, 14)
+                    .padding(.top, 10)
+                    .padding(.bottom, 4)
+
+                    ZStack {
+                        if tab == .translation {
+                            translationPanel.transition(.opacity)
+                        } else {
+                            lines.transition(.opacity)
+                        }
+                    }
+                    .animation(.easeInOut(duration: 0.2), value: tab)
+                    .frame(maxHeight: .infinity)
                 }
-                .animation(.easeInOut(duration: 0.2), value: tab)
             }
-            .overlay(alignment: .bottom) { if !edit.isActive && !hidesBottomBar { bottomBar } }
+            .overlay(alignment: .top) { if copied { copiedToast } }
         }
         .sheet(item: $editingLine) { line in editSheet(line.index) }
+        .sheet(isPresented: $showConfidence) { confidenceSheet }
+        .sheet(item: $exportFile) { file in
+            ActivityView(items: [file.url])
+                .presentationDetents([.medium, .large])
+        }
         .onAppear {
             playStampIfNeeded()
             #if DEBUG
@@ -133,33 +144,21 @@ struct ResultView: View {
             .accessibilityHint(backTitle == nil
                                ? Text(String(localized: "back_to_page_hint", defaultValue: "別の方式で読み直せます"))
                                : Text(""))
-            Spacer()
-            Menu {
-                ShareLink(item: combinedText) {
-                    Label(String(localized: "share_text", defaultValue: "テキストを共有"), systemImage: "text.bubble")
-                }
-                Button {
-                    if let url = ExportManager.exportAsTXT(text: combinedText) { exportFile = ExportFile(url: url) }
-                } label: {
-                    Label(String(localized: "export_txt", defaultValue: "TXTで書き出す"), systemImage: "doc.text")
-                }
-                Button {
-                    if let url = ExportManager.exportAsPDF(text: combinedText, image: result.image) { exportFile = ExportFile(url: url) }
-                } label: {
-                    Label(String(localized: "export_pdf", defaultValue: "PDFで書き出す"), systemImage: "doc.richtext")
-                }
-            } label: {
-                IconLabel(systemName: "square.and.arrow.up")
+            Spacer(minLength: 8)
+            // Read the next page: small, since copying is the main thing on this screen.
+            Button(action: onNew) {
+                IconLabel(systemName: "plus")
                     .foregroundColor(LOColor.ink)
                     .loGlass(.regular, in: Circle(), interactive: true)
             }
-            .disabled(detections.isEmpty || edit.isActive)
-            .accessibilityLabel(Text(String(localized: "share", defaultValue: "共有")))
-            .accessibilityIdentifier("share_menu")
+            .accessibilityLabel(Text(String(localized: "new_image", defaultValue: "次の画像")))
+            .accessibilityIdentifier("new_image")
         }
-        .sheet(item: $exportFile) { file in
-            ActivityView(items: [file.url])
-                .presentationDetents([.medium, .large])
+        // Which reader and how much it found, in the middle of the header.
+        .overlay {
+            if !typeSize.isAccessibilitySize {
+                summary
+            }
         }
     }
 
@@ -223,7 +222,9 @@ struct ResultView: View {
                     if !isPinching && !edit.isActive { steadyOffset = offset }
                 }
         )
-        .highPriorityGesture(
+        // Simultaneous, not high priority: a high-priority pinch holds back the box drag underneath
+        // until SwiftUI decides it is not a pinch, so the box lagged behind the finger (KotenOCR 2.1.2).
+        .simultaneousGesture(
             MagnificationGesture()
                 .onChanged { value in
                     isPinching = true
@@ -332,54 +333,25 @@ struct ResultView: View {
         }
     }
 
-    // MARK: Tools under the page
-
-    private var pageTools: some View {
-        HStack(spacing: 10) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) { showBoxes.toggle() }
-            } label: {
-                Label(String(localized: "boxes_toggle", defaultValue: "枠"),
-                      systemImage: showBoxes ? "rectangle.dashed" : "rectangle.slash")
-                    .font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 14)
-                    .frame(minHeight: 40)
-                    .opacity(showBoxes ? 1 : 0.6)
-            }
-            .buttonStyle(.loGlass)
-            .accessibilityAddTraits(showBoxes ? [.isSelected] : [])
-            .accessibilityIdentifier("boxes_toggle")
-
-            Button(action: beginEditing) {
-                Label(String(localized: "box_edit_enter", defaultValue: "枠を直す"),
-                      systemImage: "rectangle.and.pencil.and.ellipsis")
-                    .font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 14)
-                    .frame(minHeight: 40)
-            }
-            .buttonStyle(.loGlass)
-            .accessibilityIdentifier("box_edit_enter")
-
-            Spacer()
-        }
-    }
-
     // MARK: Summary
 
     private var summary: some View {
         let shown = visibleLines.map(\.detection)
-        return HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Label(result.engine.title, systemImage: result.engine.symbol)
+        return VStack(spacing: 1) {
+            Text(result.engine.title)
                 .font(.mincho(15, relativeTo: .subheadline, bold: true))
                 .foregroundColor(LOColor.ink)
-                .labelStyle(.titleAndIcon)
-            Spacer(minLength: 4)
-            stat(String(localized: "result_lines", defaultValue: "\(shown.count) 行"))
-            stat(String(localized: "result_chars", defaultValue: "\(combinedText.count) 字"))
-            stat(String(format: String(localized: "result_seconds", defaultValue: "%.1f 秒"), result.seconds))
+            HStack(spacing: 8) {
+                stat(String(localized: "result_lines", defaultValue: "\(shown.count) 行"))
+                stat(String(localized: "result_chars", defaultValue: "\(combinedText.count) 字"))
+                stat(String(format: String(localized: "result_seconds", defaultValue: "%.1f 秒"), result.seconds))
+            }
         }
-        .overlay(alignment: .bottom) { LOColor.rule.frame(height: 1).offset(y: 8) }
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .frame(maxWidth: 190)
         .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("result_summary")
     }
 
     private func stat(_ text: String) -> some View {
@@ -445,7 +417,7 @@ struct ResultView: View {
                     }
                 }
                 .padding(.top, 8)
-                .padding(.bottom, edit.isActive ? 24 : 96)
+                .padding(.bottom, 16)
             }
             .onChange(of: selected) { _, i in
                 if let i { withAnimation(LOMotion.spring(reduceMotion: reduceMotion)) { proxy.scrollTo(i, anchor: .center) } }
@@ -453,52 +425,168 @@ struct ResultView: View {
         }
     }
 
-    // MARK: Bottom bar
+    // MARK: Copy and "…"
 
-    private var bottomBar: some View {
-        HStack(spacing: 12) {
-            Button(action: onNew) {
-                HStack(spacing: 6) {
-                    Image(systemName: "plus")
-                    Text(String(localized: "new_image", defaultValue: "次の画像"))
-                        .font(.body.weight(.bold))
-                }
-                .padding(.horizontal, 18)
-                .frame(minHeight: 52)
-            }
-            .buttonStyle(.loGlass)
-
-            Button {
-                UIPasteboard.general.string = copyText
-                LOHaptics.notify(.success)
-                withAnimation(.easeOut(duration: 0.2)) { copied = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
-                    withAnimation(.easeOut(duration: 0.2)) { copied = false }
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                    Text(copied ? String(localized: "copied", defaultValue: "コピーしました")
-                                : String(localized: "copy_all", defaultValue: "全文をコピー"))
-                        .font(.mincho(18, relativeTo: .headline, bold: true))
-                }
-                .frame(maxWidth: .infinity, minHeight: 52)
-            }
-            .buttonStyle(.loProminent)
-            .disabled(copyText.isEmpty)
-            .accessibilityIdentifier("copy_button")
+    /// Copy beside the tabs. Copies the text of the visible tab.
+    private var copyButton: some View {
+        Button(action: copyCurrentTab) {
+            Label(String(localized: "copy", defaultValue: "コピー"), systemImage: "doc.on.doc")
+                .font(.subheadline.weight(.bold))
+                .lineLimit(1)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 40)
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 28)
-        .padding(.bottom, 8)
-        .background(
-            LinearGradient(stops: [.init(color: LOColor.washi.opacity(0), location: 0),
-                                   .init(color: LOColor.washi, location: 0.4),
-                                   .init(color: LOColor.washi, location: 1)],
-                           startPoint: .top, endPoint: .bottom)
-                .ignoresSafeArea(edges: .bottom)
-                .allowsHitTesting(false)
-        )
+        .buttonStyle(.loProminent)
+        .fixedSize()
+        .disabled(copyText.isEmpty)
+        .accessibilityIdentifier("copy_button")
+    }
+
+    private func copyCurrentTab() {
+        UIPasteboard.general.string = copyText
+        LOHaptics.notify(.success)
+        withAnimation(.easeOut(duration: 0.2)) { copied = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+            withAnimation(.easeOut(duration: 0.2)) { copied = false }
+        }
+    }
+
+    private var copiedToast: some View {
+        Label(String(localized: "copied", defaultValue: "コピーしました"), systemImage: "checkmark")
+            .font(.subheadline.weight(.semibold))
+            .foregroundColor(LOColor.ink)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .loGlass(.regular, in: Capsule(), interactive: false)
+            .padding(.top, 8)
+            .transition(.move(edge: .top).combined(with: .opacity))
+            .accessibilityIdentifier("copied_toast")
+    }
+
+    /// Everything that is not reading or copying: fixing boxes, boxes on/off, the confidence filter, export.
+    private var moreMenu: some View {
+        Menu {
+            Button(action: beginEditing) {
+                Label(String(localized: "box_edit_enter", defaultValue: "枠を直す"),
+                      systemImage: "rectangle.and.pencil.and.ellipsis")
+            }
+            .disabled(detections.isEmpty)
+            .accessibilityIdentifier("box_edit_enter")
+            Toggle(isOn: Binding(get: { showBoxes },
+                                 set: { v in withAnimation(.easeInOut(duration: 0.2)) { showBoxes = v } })) {
+                Label(String(localized: "boxes_show", defaultValue: "枠を表示"), systemImage: "rectangle.dashed")
+            }
+            .accessibilityIdentifier("boxes_toggle")
+            Button { showConfidence = true } label: {
+                Label(hiddenCount > 0
+                      ? String(format: String(localized: "confidence_menu_hidden", defaultValue: "確信度（%d 行を隠し中）"), hiddenCount)
+                      : String(localized: "confidence_menu", defaultValue: "確信度…"),
+                      systemImage: "slider.horizontal.3")
+            }
+            .accessibilityIdentifier("confidence_menu")
+            Divider()
+            ShareLink(item: combinedText) {
+                Label(String(localized: "share_text", defaultValue: "テキストを共有"), systemImage: "text.bubble")
+            }
+            .disabled(detections.isEmpty)
+            Button {
+                if let url = ExportManager.exportAsTXT(text: combinedText) { exportFile = ExportFile(url: url) }
+            } label: {
+                Label(String(localized: "export_txt", defaultValue: "TXTで書き出す"), systemImage: "doc.text")
+            }
+            .disabled(detections.isEmpty)
+            Button {
+                if let url = ExportManager.exportAsPDF(text: combinedText, image: result.image) { exportFile = ExportFile(url: url) }
+            } label: {
+                Label(String(localized: "export_pdf", defaultValue: "PDFで書き出す"), systemImage: "doc.richtext")
+            }
+            .disabled(detections.isEmpty)
+        } label: {
+            IconLabel(systemName: "ellipsis")
+                .foregroundColor(LOColor.ink)
+                .loGlass(.regular, in: Circle(), interactive: true)
+                // A dot while the confidence filter hides lines, so the hidden state is not forgotten.
+                .overlay(alignment: .topTrailing) {
+                    if hiddenCount > 0 {
+                        Circle().fill(LOColor.aiFill).frame(width: 10, height: 10)
+                    }
+                }
+        }
+        .accessibilityLabel(Text(String(localized: "result_more", defaultValue: "その他")))
+        .accessibilityIdentifier("result_more_menu")
+    }
+
+    /// The confidence slider in a short sheet, so the page with its boxes stays visible above it.
+    private var confidenceSheet: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Spacer()
+                Button(String(localized: "close", defaultValue: "閉じる")) { showConfidence = false }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(LOColor.ai)
+                    .accessibilityIdentifier("confidence_done")
+            }
+            .padding(.horizontal, 20)
+            confidenceControl
+                .padding(.horizontal, 24)
+            Spacer(minLength: 0)
+        }
+        .padding(.top, 14)
+        .presentationDetents([.height(170)])
+        .presentationDragIndicator(.visible)
+    }
+
+    /// While editing: the chosen line's number and text in one line, with ‹ › to step through lines
+    /// (handy for boxes too small to tap). Replaces the line list, which is hidden while editing.
+    private var selectedLineBar: some View {
+        let items = edit.editor?.detections ?? []
+        let sel = edit.editor?.selected
+        return HStack(spacing: 6) {
+            Button { stepSelection(-1, count: items.count) } label: {
+                Image(systemName: "chevron.left").frame(width: 36, height: 36)
+            }
+            .disabled(items.isEmpty)
+            .accessibilityLabel(Text(String(localized: "box_edit_prev", defaultValue: "前の行")))
+            .accessibilityIdentifier("box_edit_prev")
+
+            Group {
+                if let sel, items.indices.contains(sel) {
+                    (Text("\(sel + 1)  ").foregroundColor(LOColor.ai).font(.footnote.weight(.semibold).monospacedDigit())
+                     + Text(items[sel].text.isEmpty ? "---" : items[sel].text).font(.mincho(17, relativeTo: .body)))
+                        .accessibilityLabel(Text("\(sel + 1): \(items[sel].text)"))
+                } else {
+                    Text(String(format: String(localized: "box_edit_line_total", defaultValue: "%d 行。枠をタップするか ‹ › で選びます"), items.count))
+                        .font(.mincho(15, relativeTo: .body))
+                        .foregroundColor(LOColor.inkSecondary)
+                }
+            }
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(maxWidth: .infinity)
+            .accessibilityElement(children: .combine)
+            .accessibilityValue(Text("\(items.count)"))   // number of lines, for the UI tests
+            .accessibilityIdentifier("box_edit_selected_line")
+
+            Button { stepSelection(1, count: items.count) } label: {
+                Image(systemName: "chevron.right").frame(width: 36, height: 36)
+            }
+            .disabled(items.isEmpty)
+            .accessibilityLabel(Text(String(localized: "box_edit_next", defaultValue: "次の行")))
+            .accessibilityIdentifier("box_edit_next")
+        }
+        .font(.body.weight(.semibold))
+        .foregroundColor(LOColor.ink)
+        .padding(.horizontal, 14)
+        .padding(.top, 8)
+        .disabled(edit.isReading)
+    }
+
+    private func stepSelection(_ step: Int, count: Int) {
+        guard count > 0 else { return }
+        let next: Int
+        if let cur = edit.editor?.selected { next = (cur + step + count) % count }
+        else { next = step > 0 ? 0 : count - 1 }
+        edit.editor?.selected = next
     }
 
     // MARK: Seal
@@ -586,9 +674,6 @@ struct ResultView: View {
 
     private var combinedText: String { ConfidenceFilter.text(detections, threshold: threshold) }
 
-    /// Nothing to copy yet on the translation tab: the bar would cover the "translate" button.
-    private var hidesBottomBar: Bool { tab == .translation && (translatedText ?? "").isEmpty }
-
     /// What "copy" copies: the text of the tab on screen.
     private var copyText: String { tab == .translation ? (translatedText ?? "") : combinedText }
 
@@ -596,7 +681,7 @@ struct ResultView: View {
 
     private var tabPicker: some View {
         Picker("", selection: $tab) {
-            Text(String(localized: "tab_text", defaultValue: "読み取り結果")).tag(ResultTab.text)
+            Text(String(localized: "tab_text", defaultValue: "読み取り")).tag(ResultTab.text)
             Text(String(localized: "tab_translation", defaultValue: "現代語訳")).tag(ResultTab.translation)
         }
         .pickerStyle(.segmented)
@@ -684,7 +769,7 @@ struct ResultView: View {
                     .padding(.vertical, 16)
                 }
             }
-            .padding(.bottom, 96)
+            .padding(.bottom, 16)
             .animation(.easeInOut(duration: 0.2), value: isTranslating)
         }
     }

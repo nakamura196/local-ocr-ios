@@ -68,7 +68,6 @@
 "result_empty" = "文字が見つかりませんでした。別の方式で読み直すと読めることがあります。";
 "new_image" = "次の画像";
 "copied" = "コピーしました";
-"copy_all" = "全文をコピー";
 
 /* Sample pages (titles and credits are the same as KotenOCR's) */
 "home_try_sample" = "サンプルの頁で試す";
@@ -147,7 +146,6 @@
 "tipjar_error_unverified" = "購入の検証に失敗しました";
 
 /* Result screen and box editing (from KotenOCR) */
-"boxes_toggle" = "枠";
 "box_edit_enter" = "枠を直す";
 "confidence_label" = "確信度";
 "confidence_hint_hidden" = "上げると自信のない枠から隠れます。いま %d 行を隠しています";
@@ -246,7 +244,7 @@
 "local_ai_os_not_supported" = "端末内の AI には iOS 26 以降が必要です。";
 "translation_error_too_long" = "テキストが長すぎます";
 "translation_error_local_ai" = "端末内の AI はこの機種では使えません。iOS 26 以降と Apple Intelligence に対応した機種が必要です。";
-"tab_text" = "読み取り結果";
+"tab_text" = "読み取り";
 "tab_translation" = "現代語訳";
 "translate_button" = "現代語訳";
 "retranslate_button" = "訳し直す";
@@ -255,3 +253,13 @@
 "translation_on_device_note" = "端末内の AI で訳します。文字は端末の外に送りません。";
 "translation_disclaimer" = "端末内の AI による訳と解説です。誤りが含まれることがあります。";
 "history_translated_badge" = "訳あり";
+
+/* Result screen layout (as KotenOCR 2.1.2) */
+"copy" = "コピー";
+"boxes_show" = "枠を表示";
+"confidence_menu" = "確信度…";
+"confidence_menu_hidden" = "確信度（%d 行を隠し中）";
+"result_more" = "その他";
+"box_edit_prev" = "前の行";
+"box_edit_next" = "次の行";
+"box_edit_line_total" = "%d 行。枠をタップするか ‹ › で選びます";
